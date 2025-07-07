@@ -24,17 +24,10 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 
 /* Frame & Preview */
 .frame-container { padding: 40px; background: #fafafa; display: flex; justify-content: center; align-items: center; min-height: 500px; }
-.photo-frame { transition: all 0.3s ease; display: flex; flex-direction: column; }
-.photo-area { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; }
-.photo-placeholder { color: #999; text-align: center; padding: 60px 40px; background: #f8f8f8; border: 1px dashed #ddd; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.photo-frame { transition: all 0.3s ease; display: flex; flex-direction: column; max-width: 100%; width: 500px; /* Default width */ }
+.photo-area { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; width: 100%; }
+.photo-placeholder { color: #999; text-align: center; padding: 60px 40px; background: #f8f8f8; border: 1px dashed #ddd; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: absolute; }
 .photo-img { width: 100%; height: 100%; object-fit: contain; display: none; }
-
-/* Aspect Ratios (base width 400px) */
-.aspect-3-2 { width: 400px; } .aspect-3-2 .photo-area { height: 267px; }
-.aspect-4-3 { width: 400px; } .aspect-4-3 .photo-area { height: 300px; }
-.aspect-16-9 { width: 400px; } .aspect-16-9 .photo-area { height: 225px; }
-.aspect-1-1 { width: 400px; } .aspect-1-1 .photo-area { height: 400px; }
-.aspect-21-9 { width: 400px; } .aspect-21-9 .photo-area { height: 171px; }
 
 /* Info Panels */
 .info-panel-wrapper { flex-shrink: 0; }
@@ -45,21 +38,22 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 .template-a.black-frame .template-a-panel { background: #111; color: white; }
 .template-a.white-frame .template-a-panel { background: white; color: #333; }
 .template-a .a-top-row .camera-info { font-weight: bold; font-size: 1.1em; }
-.template-a .a-bottom-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
+.template-a .a-middle-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
+.template-a .a-bottom-row { margin-top: 10px; }
 .template-a .shooting-info { font-size: 0.9em; }
 .template-a .date-info { font-size: 0.8em; color: #888; }
 .template-a.black-frame .date-info { color: #ccc; }
+.template-a .location-info { font-size: 0.8em; color: #888; font-style: italic; }
+.template-a.black-frame .location-info { color: #ccc; }
 
 /* Template B */
-.template-b { box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-.template-b .template-b-panel { display: flex; flex-direction: column; align-items: flex-end; text-align: right; background: white; color: #333; }
+.template-b .template-b-panel { display: flex; flex-direction: column; align-items: flex-end; text-align: right; background: white; color: #333; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .template-b .camera-info { font-weight: bold; font-size: 1.1em; }
 .template-b .shooting-info { font-size: 0.9em; color: #666; }
 
 /* Template C */
-.template-c { width: 320px; box-shadow: 0 2px 15px rgba(0,0,0,0.15); }
-.template-c .photo-area { height: 320px !important; } /* Cは正方形固定 */
-.template-c .template-c-panel { display: block; padding-top: 15px; padding-bottom: 50px; text-align: center; background: white; }
+.template-c .photo-area { aspect-ratio: 1/1 !important; }
+.template-c .template-c-panel { display: block; padding-top: 15px; padding-bottom: 50px; text-align: center; background: white; box-shadow: 0 2px 15px rgba(0,0,0,0.15); }
 .template-c .shooting-info { font-size: 0.9em; color: #555; }
 
 /* Download Controls */
@@ -77,11 +71,4 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     .control-group { grid-template-columns: 1fr; }
     .frame-container { padding: 15px; }
     .photo-frame { width: 100% !important; }
-    .photo-frame .photo-area { height: auto !important; aspect-ratio: var(--current-aspect-ratio, 3/2); }
 }
-
-:where(.aspect-3-2) { --current-aspect-ratio: 3/2; }
-:where(.aspect-4-3) { --current-aspect-ratio: 4/3; }
-:where(.aspect-16-9) { --current-aspect-ratio: 16/9; }
-:where(.aspect-1-1) { --current-aspect-ratio: 1/1; }
-:where(.aspect-21-9) { --current-aspect-ratio: 21/9; }
