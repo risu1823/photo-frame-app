@@ -1,196 +1,231 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM要素の取得
-    const photoFrame = document.getElementById('photoFrame');
-    const photoImg = document.getElementById('photoImg');
-    const placeholder = document.getElementById('placeholder');
-    const uploadArea = document.getElementById('uploadArea');
-    const photoInput = document.getElementById('photoInput');
+    const ui = {
+        photoFrame: document.getElementById('photoFrame'),
+        photoImg: document.getElementById('photoImg'),
+        placeholder: document.getElementById('placeholder'),
+        uploadArea: document.getElementById('uploadArea'),
+        photoInput: document.getElementById('photoInput'),
+        templateButtons: document.querySelectorAll('#templateButtonGroup .btn'),
+        aspectButtons: document.querySelectorAll('#aspectButtonGroup .btn'),
+        colorControlItem: document.getElementById('colorControlItem'),
+        colorButtons: document.querySelectorAll('#colorButtonGroup .btn'),
+        downloadScreenBtn: document.getElementById('downloadScreenBtn'),
+        downloadPrintBtn: document.getElementById('downloadPrintBtn'),
+    };
 
-    const templateButtons = document.querySelectorAll('#templateButtonGroup .btn');
-    const aspectButtons = document.querySelectorAll('#aspectButtonGroup .btn');
-    const alignButtons = document.querySelectorAll('#alignButtonGroup .btn');
-    const colorControlItem = document.getElementById('colorControlItem');
-    const colorButtons = document.querySelectorAll('#colorButtonGroup .btn');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    // 入力要素
-    const allInputs = {
+    const inputs = {
         cameraInfo: document.getElementById('cameraInfo'),
         shootingDate: document.getElementById('shootingDate'),
-        location: document.getElementById('location'),
         shutterSpeed: document.getElementById('shutterSpeed'),
         aperture: document.getElementById('aperture'),
         iso: document.getElementById('iso'),
         focalLength: document.getElementById('focalLength'),
     };
 
-    // 表示要素
-    const allDisplays = {
-        leicaCameraLens: document.getElementById('displayLeicaCameraLens'),
-        leicaTime: document.getElementById('displayLeicaTime'),
-        leicaDate: document.getElementById('displayLeicaDate'),
-        leicaFocal: document.getElementById('displayLeicaFocal'),
-        leicaAperture: document.getElementById('displayLeicaAperture'),
-        leicaShutter: document.getElementById('displayLeicaShutter'),
-        leicaISO: document.getElementById('displayLeicaISO'),
-        leicaLocation: document.getElementById('displayLeicaLocation'),
-        fujifilmCamera: document.getElementById('displayFujifilmCamera'),
-        fujifilmShooting: document.getElementById('displayFujifilmShooting'),
+    const displays = {
+        a: { camera: document.getElementById('display-a-camera'), shooting: document.getElementById('display-a-shooting'), date: document.getElementById('display-a-date') },
+        b: { camera: document.getElementById('display-b-camera'), shooting: document.getElementById('display-b-shooting') },
+        c: { shooting: document.getElementById('display-c-shooting') },
     };
 
-    // --- イベントリスナー設定 ---
-    
-    // ファイルアップロード
-    uploadArea.addEventListener('click', () => photoInput.click());
-    ['dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, e => e.preventDefault());
-    });
-    uploadArea.addEventListener('dragover', () => uploadArea.classList.add('dragover'));
-    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-    uploadArea.addEventListener('drop', (e) => {
-        uploadArea.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
-    });
-    photoInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) handleFile(e.target.files[0]);
-    });
+    let originalImageSrc = null;
 
-    // ボタン類
-    templateButtons.forEach(btn => btn.addEventListener('click', handleTemplateChange));
-    aspectButtons.forEach(btn => btn.addEventListener('click', handleAspectChange));
-    alignButtons.forEach(btn => btn.addEventListener('click', handleAlignChange));
-    colorButtons.forEach(btn => btn.addEventListener('click', handleColorChange));
-    downloadBtn.addEventListener('click', handleDownload);
-    
-    // 入力フォーム
-    Object.values(allInputs).forEach(input => input.addEventListener('input', updateMetadata));
+    function setupEventListeners() {
+        ui.uploadArea.addEventListener('click', () => ui.photoInput.click());
+        ['dragover', 'dragleave', 'drop'].forEach(eName => ui.uploadArea.addEventListener(eName, e => e.preventDefault()));
+        ui.uploadArea.addEventListener('dragover', () => ui.uploadArea.classList.add('dragover'));
+        ui.uploadArea.addEventListener('dragleave', () => ui.uploadArea.classList.remove('dragover'));
+        ui.uploadArea.addEventListener('drop', e => { ui.uploadArea.classList.remove('dragover'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+        ui.photoInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
-    // --- 関数定義 ---
+        ui.templateButtons.forEach(btn => btn.addEventListener('click', handleTemplateChange));
+        ui.aspectButtons.forEach(btn => btn.addEventListener('click', handleAspectChange));
+        ui.colorButtons.forEach(btn => btn.addEventListener('click', handleColorChange));
+        ui.downloadScreenBtn.addEventListener('click', () => handleDownload('screen'));
+        ui.downloadPrintBtn.addEventListener('click', () => handleDownload('print'));
+        Object.values(inputs).forEach(input => input.addEventListener('input', updateMetadata));
+    }
 
     function handleFile(file) {
         if (!file.type.startsWith('image/')) return;
-        
         const reader = new FileReader();
-        reader.onload = (e) => {
-            photoImg.src = e.target.result;
-            photoImg.style.display = 'block';
-            placeholder.style.display = 'none';
+        reader.onload = e => {
+            originalImageSrc = e.target.result;
+            ui.photoImg.src = originalImageSrc;
+            ui.photoImg.style.display = 'block';
+            ui.placeholder.style.display = 'none';
+            const img = new Image();
+            img.onload = () => autoSelectAspectRatio(img.width / img.height);
+            img.src = originalImageSrc;
         };
         reader.readAsDataURL(file);
 
         EXIF.getData(file, function () {
             const exif = EXIF.getAllTags(this);
-            allInputs.cameraInfo.value = `${exif.Make || ''} ${exif.Model || ''}`.trim();
+            inputs.cameraInfo.value = `${exif.Make || ''} ${exif.Model || ''}`.trim();
             if (exif.DateTimeOriginal) {
                 const [date, time] = exif.DateTimeOriginal.split(' ');
-                allInputs.shootingDate.value = `${date.replace(/:/g, '-')}T${time}`;
-            } else {
-                allInputs.shootingDate.valueAsDate = new Date();
+                if (date && time) inputs.shootingDate.value = `${date.replace(/:/g, '-')}T${time}`;
             }
-            allInputs.shutterSpeed.value = exif.ExposureTime ? `1/${Math.round(1 / exif.ExposureTime)}s` : '';
-            allInputs.aperture.value = exif.FNumber ? `f/${exif.FNumber.toFixed(1)}` : '';
-            allInputs.iso.value = exif.ISOSpeedRatings ? `ISO${exif.ISOSpeedRatings}` : '';
-            allInputs.focalLength.value = exif.FocalLength ? `${exif.FocalLength}mm` : '';
-            allInputs.location.value = ''; // GPSは複雑なので空に
+            inputs.shutterSpeed.value = exif.ExposureTime ? `1/${Math.round(1 / exif.ExposureTime)}s` : '';
+            inputs.aperture.value = exif.FNumber ? `f/${exif.FNumber.toFixed(1)}` : '';
+            inputs.iso.value = exif.ISOSpeedRatings ? `ISO${exif.ISOSpeedRatings}` : '';
+            inputs.focalLength.value = exif.FocalLength ? `${exif.FocalLength}mm` : '';
             updateMetadata();
         });
     }
 
+    function autoSelectAspectRatio(originalRatio) {
+        const presets = [{ name: '3-2', r: 1.5 }, { name: '4-3', r: 4/3 }, { name: '16-9', r: 16/9 }, { name: '1-1', r: 1 }, { name: '21-9', r: 21/9 }];
+        const closest = presets.reduce((p, c) => Math.abs(c.r - originalRatio) < Math.abs(p.r - originalRatio) ? c : p);
+        document.querySelector(`.btn[data-aspect="${closest.name}"]`).click();
+    }
+
     function handleTemplateChange(e) {
         const btn = e.currentTarget;
-        templateButtons.forEach(b => b.classList.remove('active'));
+        ui.templateButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-
         const template = btn.dataset.frameTemplate;
-        photoFrame.className = photoFrame.className.replace(/\w+-template/g, '');
-        photoFrame.classList.add(`${template}-template`);
-
-        const isCheki = template === 'cheki';
-        const isFujifilm = template === 'fujifilm';
-        
-        // アスペクト比と色のコントロールを有効/無効化
-        aspectButtons.forEach(b => b.classList.toggle('disabled', isCheki));
-        colorControlItem.classList.toggle('disabled', isCheki || isFujifilm);
-
-        if (isCheki || isFujifilm) { // チェキか富士は白フレーム固定
-            photoFrame.classList.remove('black-frame');
-            photoFrame.classList.add('white-frame');
-            document.querySelector('[data-frame-color="white"]').classList.add('active');
-            document.querySelector('[data-frame-color="black"]').classList.remove('active');
-        }
+        ui.photoFrame.className = ui.photoFrame.className.replace(/\w+-template/g, '');
+        ui.photoFrame.classList.add(template);
+        ui.colorControlItem.classList.toggle('disabled', template !== 'template-a');
+        ui.aspectButtons.forEach(b => b.classList.toggle('disabled', template === 'template-c'));
+        if (template === 'template-c') document.querySelector('.btn[data-aspect="1-1"]').click();
         updateMetadata();
-    }
-    
-    function handleGenericButtonClick(e, buttonGroup) {
-        if (e.currentTarget.classList.contains('disabled')) return;
-        buttonGroup.forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
     }
 
     function handleAspectChange(e) {
-        handleGenericButtonClick(e, aspectButtons);
+        if (e.currentTarget.classList.contains('disabled')) return;
+        ui.aspectButtons.forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
         const aspect = e.currentTarget.dataset.aspect;
-        photoFrame.className = photoFrame.className.replace(/aspect-\S+/g, '');
-        photoFrame.classList.add(`aspect-${aspect}`);
-    }
-
-    function handleAlignChange(e) {
-        handleGenericButtonClick(e, alignButtons);
-        const align = e.currentTarget.dataset.align;
-        photoFrame.className = photoFrame.className.replace(/align-\S+/g, '');
-        photoFrame.classList.add(`align-${align}`);
+        ui.photoFrame.className = ui.photoFrame.className.replace(/aspect-\S+/g, '');
+        ui.photoFrame.classList.add(`aspect-${aspect}`);
     }
 
     function handleColorChange(e) {
-        if (colorControlItem.classList.contains('disabled')) return;
-        handleGenericButtonClick(e, colorButtons);
+        if (ui.colorControlItem.classList.contains('disabled')) return;
+        ui.colorButtons.forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
         const color = e.currentTarget.dataset.frameColor;
-        photoFrame.classList.remove('black-frame', 'white-frame');
-        photoFrame.classList.add(`${color}-frame`);
+        ui.photoFrame.classList.remove('black-frame', 'white-frame');
+        ui.photoFrame.classList.add(`${color}-frame`);
     }
 
     function updateMetadata() {
-        const template = document.querySelector('#templateButtonGroup .btn.active').dataset.frameTemplate;
-        
         const data = {
-            camera: allInputs.cameraInfo.value || 'カメラ機種',
-            date: allInputs.shootingDate.value ? new Date(allInputs.shootingDate.value) : null,
-            location: allInputs.location.value || '撮影場所',
-            shutter: allInputs.shutterSpeed.value || '1/125s',
-            aperture: allInputs.aperture.value || 'f/2.8',
-            iso: allInputs.iso.value || 'ISO800',
-            focal: allInputs.focalLength.value || '50mm',
+            camera: inputs.cameraInfo.value,
+            date: inputs.shootingDate.value ? new Date(inputs.shootingDate.value) : null,
+            shooting: [inputs.focalLength.value, inputs.aperture.value, inputs.shutterSpeed.value, inputs.iso.value].filter(Boolean).join(' '),
         };
+        // Template A
+        displays.a.camera.textContent = data.camera;
+        displays.a.shooting.textContent = data.shooting;
+        displays.a.date.textContent = data.date ? data.date.toLocaleDateString('ja-JP') : '';
+        // Template B
+        displays.b.camera.textContent = data.camera;
+        displays.b.shooting.textContent = data.shooting;
+        // Template C
+        displays.c.shooting.textContent = data.shooting;
+    }
 
-        if (template === 'leica' || template === 'cheki') {
-            allDisplays.leicaCameraLens.textContent = data.camera;
-            allDisplays.leicaFocal.textContent = data.focal;
-            allDisplays.leicaAperture.textContent = data.aperture;
-            allDisplays.leicaShutter.textContent = data.shutter;
-            allDisplays.leicaISO.textContent = data.iso;
-            allDisplays.leicaLocation.textContent = data.location;
-            if (data.date) {
-                allDisplays.leicaDate.textContent = data.date.toLocaleDateString('ja-JP-u-ca-japanese', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.');
-                allDisplays.leicaTime.textContent = data.date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    async function handleDownload(type) {
+        if (!originalImageSrc) { alert('先に写真をアップロードしてください。'); return; }
+        const btn = type === 'screen' ? ui.downloadScreenBtn : ui.downloadPrintBtn;
+        const originalText = btn.textContent;
+        btn.textContent = '生成中...'; btn.disabled = true;
+
+        try {
+            if (type === 'screen') {
+                const canvas = await html2canvas(ui.photoFrame, { useCORS: true, scale: 2 });
+                downloadCanvas(canvas, 'photo_frame_screen.png', 'image/png');
+            } else {
+                const canvas = await createPrintCanvas();
+                downloadCanvas(canvas, 'photo_frame_print.jpg', 'image/jpeg', 0.8);
             }
+        } catch (error) {
+            console.error(`${type}用画像の生成に失敗:`, error);
+            alert('画像の生成に失敗しました。');
+        } finally {
+            btn.textContent = originalText; btn.disabled = false;
+        }
+    }
+
+    function downloadCanvas(canvas, filename, type, quality) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL(type, quality);
+        link.click();
+    }
+
+    async function createPrintCanvas() {
+        const settings = {
+            template: document.querySelector('#templateButtonGroup .btn.active').dataset.frameTemplate,
+            aspect: document.querySelector('#aspectButtonGroup .btn.active').dataset.aspect.split('-').map(Number),
+            isBlack: ui.photoFrame.classList.contains('black-frame'),
+            data: { camera: inputs.cameraInfo.value, date: inputs.shootingDate.value ? new Date(inputs.shootingDate.value) : null, shooting: [inputs.focalLength.value, inputs.aperture.value, inputs.shutterSpeed.value, inputs.iso.value].filter(Boolean).join('  ') },
+        };
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const targetWidth = 1748; // 葉書サイズ相当
+        const aspectRatio = settings.template === 'template-c' ? 1 : settings.aspect[0] / settings.aspect[1];
+        
+        const photoH = targetWidth / aspectRatio;
+        const infoH = photoH * (2 / 3);
+        canvas.width = targetWidth;
+        canvas.height = photoH + (settings.template === 'template-a' || settings.template === 'template-b' ? infoH : 0);
+        if (settings.template === 'template-c') canvas.height = targetWidth * 1.4; // 固定比率
+
+        const img = await (new Promise(r => { const i = new Image(); i.crossOrigin="anonymous"; i.onload=()=>r(i); i.src=originalImageSrc; }));
+        
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const pArea = { x: 0, y: 0, w: targetWidth, h: photoH };
+        if (settings.template === 'template-c') { // Cは写真が中央に小さく
+            pArea.w = targetWidth * 0.85; pArea.h = pArea.w; pArea.x = (targetWidth - pArea.w) / 2; pArea.y = pArea.x;
         }
         
-        if (template === 'fujifilm') {
-            allDisplays.fujifilmCamera.textContent = `Shot on ${data.camera}`;
-            allDisplays.fujifilmShooting.textContent = `${data.focal} ${data.aperture} ${data.shutter} ${data.iso}`;
+        // Draw Image
+        ctx.fillStyle = '#000'; ctx.fillRect(pArea.x, pArea.y, pArea.w, pArea.h);
+        const imgR = img.width / img.height; const areaR = pArea.w / pArea.h;
+        let dw, dh, dx, dy;
+        if (imgR > areaR) { dw=pArea.w; dh=dw/imgR; dx=pArea.x; dy=pArea.y+(pArea.h-dh)/2; }
+        else { dh=pArea.h; dw=dh*imgR; dx=pArea.x+(pArea.w-dw)/2; dy=pArea.y; }
+        ctx.drawImage(img, dx, dy, dw, dh);
+        
+        // Draw Info
+        const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: canvas.height - (pArea.y+pArea.h), p: targetWidth*0.04 };
+        ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#111' : '#fff';
+        ctx.fillRect(iArea.x, iArea.y, iArea.w, iArea.h);
+        ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#fff' : '#333';
+        const baseFont = targetWidth * 0.03;
+        
+        if (settings.template === 'template-a') {
+            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.p, iArea.y + iArea.p*1.5);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillText(settings.data.shooting, iArea.p, iArea.y + iArea.p*3);
+            if (settings.data.date) { ctx.textAlign = 'right'; ctx.fillStyle = settings.isBlack ? '#ccc' : '#888'; ctx.fillText(settings.data.date.toLocaleDateString('ja-JP'), iArea.w-iArea.p, iArea.y + iArea.p*3); ctx.textAlign = 'left'; }
+        } else if (settings.template === 'template-b') {
+            ctx.textAlign = 'right';
+            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.w-iArea.p, iArea.y + infoH/2 - baseFont*0.5);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#666'; ctx.fillText(settings.data.shooting, iArea.w-iArea.p, iArea.y + infoH/2 + baseFont);
+            ctx.textAlign = 'left';
+        } else if (settings.template === 'template-c') {
+            ctx.textAlign = 'center';
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#555';
+            ctx.fillText(settings.data.shooting, canvas.width/2, pArea.y + pArea.h + (canvas.height - (pArea.y+pArea.h))/2);
+            ctx.textAlign = 'left';
         }
+
+        return canvas;
     }
 
-    function handleDownload() {
-        html2canvas(photoFrame, { useCORS: true, scale: 2 })
-            .then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'photo_frame.png';
-                link.href = canvas.toDataURL('image/png', 1.0);
-                link.click();
-            });
+    function initialize() {
+        setupEventListeners();
+        document.querySelector('[data-frame-template="template-a"]').click();
+        document.querySelector('[data-frame-color="black"]').click();
     }
 
-    // --- 初期化処理 ---
-    document.querySelector('[data-frame-template="leica"]').click();
+    initialize();
 });
