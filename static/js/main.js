@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
         photoInput: document.getElementById('photoInput'),
         templateButtons: document.querySelectorAll('#templateButtonGroup .btn'),
         aspectButtons: document.querySelectorAll('#aspectButtonGroup .btn'),
-        colorControlItem: document.getElementById('colorControlItem'),
         colorButtons: document.querySelectorAll('#colorButtonGroup .btn'),
         downloadScreenBtn: document.getElementById('downloadScreenBtn'),
         downloadPrintBtn: document.getElementById('downloadPrintBtn'),
@@ -31,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let originalImageSrc = null;
-    let originalImageRatio = 1.5; // Default
+    let originalImageRatio = 3 / 2; // Default to 3:2
 
     function setupEventListeners() {
         ui.uploadArea.addEventListener('click', () => ui.photoInput.click());
@@ -60,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.onload = () => {
                 originalImageRatio = img.width / img.height;
-                autoSelectAspectRatio(originalImageRatio);
+                applyAspectRatio(); // Apply the photo's own aspect ratio
             };
             img.src = originalImageSrc;
         };
@@ -72,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (exif.DateTimeOriginal) {
                 const [date, time] = exif.DateTimeOriginal.split(' ');
                 if (date && time) inputs.shootingDate.value = `${date.replace(/:/g, '-')}T${time}`;
+            } else {
+                 inputs.shootingDate.value = null;
             }
             inputs.shutterSpeed.value = exif.ExposureTime ? `1/${Math.round(1 / exif.ExposureTime)}s` : '';
             inputs.aperture.value = exif.FNumber ? `f/${exif.FNumber.toFixed(1)}` : '';
@@ -82,16 +83,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function autoSelectAspectRatio(ratio) {
-        const presets = [{ name: '3-2', r: 1.5 }, { name: '4-3', r: 4/3 }, { name: '16-9', r: 16/9 }, { name: '1-1', r: 1 }, { name: '21-9', r: 21/9 }];
-        const closest = presets.reduce((p, c) => Math.abs(c.r - ratio) < Math.abs(p.r - ratio) ? c : p);
-        const targetButton = document.querySelector(`.btn[data-aspect="${closest.name}"]`);
-        if (targetButton) {
-            targetButton.click();
-        } else {
-            // プリセットにない場合は写真の比率を直接適用
-            ui.photoArea.style.aspectRatio = ratio;
+    function applyAspectRatio(overrideRatio = null) {
+        const isCheki = ui.photoFrame.classList.contains('template-c');
+        let targetRatio = overrideRatio;
+
+        if (isCheki) {
+            targetRatio = 1;
+        } else if (!overrideRatio) {
+            targetRatio = originalImageRatio;
         }
+        
+        ui.photoArea.style.aspectRatio = targetRatio;
+        
+        // Update aspect button states
+        ui.aspectButtons.forEach(btn => {
+            const btnRatio = eval(btn.dataset.aspect.replace('-', '/'));
+            btn.classList.toggle('active', Math.abs(btnRatio - targetRatio) < 0.01);
+        });
     }
 
     function handleTemplateChange(e) {
@@ -99,35 +107,27 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.templateButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const template = btn.dataset.frameTemplate;
-        ui.photoFrame.className = 'photo-frame'; // Reset classes
-        ui.photoFrame.classList.add(template);
-        // Apply active color
-        const activeColor = document.querySelector('#colorButtonGroup .btn.active').dataset.frameColor;
-        ui.photoFrame.classList.add(`${activeColor}-frame`);
 
-        ui.colorControlItem.classList.toggle('disabled', template !== 'template-a');
-        ui.aspectButtons.forEach(b => b.classList.toggle('disabled', template === 'template-c'));
+        // Reset classes and apply new ones
+        const currentColor = ui.photoFrame.classList.contains('black-frame') ? 'black-frame' : 'white-frame';
+        ui.photoFrame.className = 'photo-frame';
+        ui.photoFrame.classList.add(template, currentColor);
 
-        const activeAspectButton = document.querySelector('#aspectButtonGroup .btn.active');
-        if (template === 'template-c') {
-            document.querySelector('.btn[data-aspect="1-1"]').click();
-        } else if (activeAspectButton) {
-            activeAspectButton.click(); // Re-apply aspect ratio
-        }
+        const isCheki = (template === 'template-c');
+        ui.aspectButtons.forEach(b => b.classList.toggle('disabled', isCheki));
+        
+        applyAspectRatio(); // Re-apply aspect ratio based on new template
         updateMetadata();
     }
 
     function handleAspectChange(e) {
-        if (e.currentTarget.classList.contains('disabled')) return;
-        ui.aspectButtons.forEach(b => b.classList.remove('active'));
         const btn = e.currentTarget;
-        btn.classList.add('active');
-        const aspect = btn.dataset.aspect.split('-').map(Number);
-        ui.photoArea.style.aspectRatio = aspect[0] / aspect[1];
+        if (btn.classList.contains('disabled')) return;
+        const aspect = btn.dataset.aspect.replace('-', '/');
+        applyAspectRatio(eval(aspect));
     }
 
     function handleColorChange(e) {
-        if (ui.colorControlItem.classList.contains('disabled')) return;
         ui.colorButtons.forEach(b => b.classList.remove('active'));
         e.currentTarget.classList.add('active');
         const color = e.currentTarget.dataset.frameColor;
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.textContent = '生成中...'; btn.disabled = true;
         try {
             if (type === 'screen') {
-                const canvas = await html2canvas(ui.photoFrame, { useCORS: true, scale: 2 });
+                const canvas = await html2canvas(ui.photoFrame, { useCORS: true, scale: 2, backgroundColor: null });
                 downloadCanvas(canvas, 'photo_frame_screen.png', 'image/png');
             } else {
                 const canvas = await createPrintCanvas();
@@ -194,25 +194,24 @@ document.addEventListener('DOMContentLoaded', () => {
         let infoH = photoH * (2 / 3);
         canvas.width = targetWidth;
         canvas.height = photoH;
-        
-        if(settings.template !== 'template-a' && settings.template !== 'template-b' && settings.template !== 'template-c') {
-            infoH = 0; // No info panel for other cases
-        }
-        
+
         if (settings.template === 'template-c') {
-            canvas.height = targetWidth / settings.aspectRatio + targetWidth*0.3; // Specific layout for C
-        } else {
-            canvas.height += infoH;
+            infoH = targetWidth * 0.4; // Cheki has a larger bottom margin
         }
+        canvas.height += infoH;
 
         const img = await (new Promise(r => { const i = new Image(); i.crossOrigin="anonymous"; i.onload=()=>r(i); i.src=originalImageSrc; }));
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = settings.isBlack ? '#111' : '#fff'; // Frame color for background
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         const pArea = { x: 0, y: 0, w: targetWidth, h: photoH };
-        if (settings.template === 'template-c') {
-             pArea.w = targetWidth; pArea.h = targetWidth / settings.aspectRatio;
+        if (settings.template === 'template-c') { // Cheki has inset photo
+             pArea.w = targetWidth * 0.9; pArea.h = pArea.w / settings.aspectRatio;
+             pArea.x = (targetWidth - pArea.w) / 2; pArea.y = pArea.x;
+             infoH = canvas.height - (pArea.y + pArea.h);
         }
         
+        // Draw Image
         ctx.fillStyle = '#000'; ctx.fillRect(pArea.x, pArea.y, pArea.w, pArea.h);
         const imgR = img.width / img.height; const areaR = pArea.w / pArea.h;
         let dw, dh, dx, dy;
@@ -220,30 +219,26 @@ document.addEventListener('DOMContentLoaded', () => {
         else { dh=pArea.h; dw=dh*imgR; dx=pArea.x+(pArea.w-dw)/2; dy=pArea.y; }
         ctx.drawImage(img, dx, dy, dw, dh);
         
+        // Draw Info
         const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: infoH, p: targetWidth*0.04 };
-        if(settings.template === 'template-c') {
-            iArea.h = canvas.height - pArea.h;
-        }
-
-        ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#111' : '#fff';
-        ctx.fillRect(iArea.x, iArea.y, iArea.w, iArea.h);
-        ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#fff' : '#333';
+        ctx.fillStyle = settings.isBlack ? '#fff' : '#333';
         const baseFont = targetWidth * 0.025;
         
         if (settings.template === 'template-a') {
-            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.p, iArea.y + iArea.p);
-            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillText(settings.data.shooting, iArea.p, iArea.y + iArea.p*2);
+            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.p, iArea.y + iArea.p*1.5);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillText(settings.data.shooting, iArea.p, iArea.y + iArea.p*2.5);
             ctx.textAlign = 'right'; ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
-            if (settings.data.date) { ctx.fillText(settings.data.date.toLocaleDateString('ja-JP'), iArea.w-iArea.p, iArea.y + iArea.p*2); }
+            if (settings.data.date) { ctx.fillText(settings.data.date.toLocaleDateString('ja-JP'), iArea.w-iArea.p, iArea.y + iArea.p*2.5); }
             ctx.textAlign = 'left';
-            ctx.font = `italic ${baseFont*0.8}px sans-serif`; ctx.fillText(settings.data.location, iArea.p, iArea.y + iArea.p*3);
+            ctx.font = `italic ${baseFont*0.8}px sans-serif`; ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
+            ctx.fillText(settings.data.location, iArea.p, iArea.y + iArea.p*3.5);
         } else if (settings.template === 'template-b') {
             ctx.textAlign = 'right';
             ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.w-iArea.p, iArea.y + iArea.h/2 - baseFont*0.6);
-            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#666'; ctx.fillText(settings.data.shooting, iArea.w-iArea.p, iArea.y + iArea.h/2 + baseFont*0.8);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = settings.isBlack ? '#eee' : '#666'; ctx.fillText(settings.data.shooting, iArea.w-iArea.p, iArea.y + iArea.h/2 + baseFont*0.8);
             ctx.textAlign = 'left';
         } else if (settings.template === 'template-c') {
-            ctx.textAlign = 'center'; ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#555';
+            ctx.textAlign = 'center'; ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = settings.isBlack ? '#eee' : '#555';
             ctx.fillText(settings.data.shooting, canvas.width/2, iArea.y + iArea.h/2);
             ctx.textAlign = 'left';
         }
@@ -254,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupEventListeners();
         document.querySelector('[data-frame-template="template-a"]').click();
         document.querySelector('[data-frame-color="black"]').click();
+        applyAspectRatio();
     }
     initialize();
 });
