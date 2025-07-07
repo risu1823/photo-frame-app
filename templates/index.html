@@ -34,7 +34,7 @@
                         </div>
                     </div>
                     <div class="control-item">
-                        <label>アスペクト比</label>
+                        <label>アスペクト比 (オプション)</label>
                         <div class="button-group" id="aspectButtonGroup">
                             <button class="btn" data-aspect="3-2">3:2</button>
                             <button class="btn" data-aspect="4-3">4:3</button>
@@ -58,6 +58,7 @@
                 <div class="control-group">
                     <div class="control-item"><label>カメラ機種</label><input type="text" id="cameraInfo"></div>
                     <div class="control-item"><label>撮影日時</label><input type="datetime-local" id="shootingDate"></div>
+                    <div class="control-item"><label>撮影場所</label><input type="text" id="location"></div>
                     <div class="control-item"><label>シャッター速度</label><input type="text" id="shutterSpeed"></div>
                     <div class="control-item"><label>F値</label><input type="text" id="aperture"></div>
                     <div class="control-item"><label>ISO</label><input type="text" id="iso"></div>
@@ -68,7 +69,7 @@
 
         <div class="frame-container">
             <div id="photoFrame" class="photo-frame">
-                <div class="photo-area">
+                <div class="photo-area" id="photoArea">
                     <img id="photoImg" alt="アップロードされた写真">
                     <div class="photo-placeholder" id="placeholder">ここに写真が表示されます</div>
                 </div>
@@ -79,9 +80,12 @@
                         <div class="a-top-row">
                             <span id="display-a-camera" class="camera-info"></span>
                         </div>
-                        <div class="a-bottom-row">
+                        <div class="a-middle-row">
                             <span id="display-a-shooting" class="shooting-info"></span>
                             <span id="display-a-date" class="date-info"></span>
+                        </div>
+                        <div class="a-bottom-row">
+                            <span id="display-a-location" class="location-info"></span>
                         </div>
                     </div>
 
