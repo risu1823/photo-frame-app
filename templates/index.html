@@ -2,29 +2,146 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>フォトフレーム</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フォトフレーム生成</title>
+    <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script defer src="/static/js/main.js"></script>
 </head>
 <body>
-    <h1>フォトフレーム生成</h1>
-    <input type="file" id="photoInput" accept="image/*"><br><br>
-
-    <div id="photoFrame" style="padding: 20px; background: #f0f0f0; display: inline-block;">
-        <div style="width: 300px; height: 200px; background: #ccc; position: relative;">
-            <img id="photoImg" src="" alt="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+    <div class="container">
+        <div class="header">
+            <h1>フォトフレーム</h1>
+            <p>写真をアップロードしてメタデータを追加・編集</p>
         </div>
-        <div id="metaInfo">
-            <p id="camera">カメラ機種: -</p>
-            <p id="datetime">撮影日時: -</p>
-            <p id="shutter">シャッター速度: -</p>
-            <p id="aperture">絞り: -</p>
-            <p id="iso">ISO: -</p>
-            <p id="focal">焦点距離: -</p>
-        </div>
-    </div><br><br>
 
-    <button id="downloadBtn">画像として保存</button>
+        <div class="controls">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-text">
+                    クリックまたはドラッグ&ドロップで写真をアップロード
+                </div>
+                <input type="file" id="photoInput" class="upload-input" accept="image/*">
+            </div>
+
+            <div class="control-section">
+                <h3>基本情報</h3>
+                <div class="control-group">
+                    <div class="control-item">
+                        <label>カメラ機種 + レンズ</label>
+                        <input type="text" id="cameraInfo" placeholder="LEICA Q2 SUMMILUX 1:1.7/28 ASPH.">
+                    </div>
+                    <div class="control-item">
+                        <label>撮影日時</label>
+                        <input type="datetime-local" id="shootingDate">
+                    </div>
+                    <div class="control-item">
+                        <label>撮影場所</label>
+                        <input type="text" id="location" placeholder="東京都渋谷区">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>撮影データ</h3>
+                <div class="control-group">
+                    <div class="control-item">
+                        <label>シャッタースピード</label>
+                        <input type="text" id="shutterSpeed" placeholder="1/160s">
+                    </div>
+                    <div class="control-item">
+                        <label>F値</label>
+                        <input type="text" id="aperture" placeholder="f/2.8">
+                    </div>
+                    <div class="control-item">
+                        <label>ISO</label>
+                        <input type="text" id="iso" placeholder="ISO100">
+                    </div>
+                    <div class="control-item">
+                        <label>焦点距離</label>
+                        <input type="text" id="focalLength" placeholder="50mm">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>フレーム設定</h3>
+                <div class="control-group">
+                    <div class="control-item">
+                        <label>フレームテンプレート</label>
+                        <div class="button-group" id="templateButtonGroup">
+                            <button class="btn active" data-frame-template="leica">Leica風</button>
+                            <button class="btn" data-frame-template="fujifilm">Fujifilm風</button>
+                            <button class="btn" data-frame-template="cheki">チェキ</button>
+                        </div>
+                    </div>
+                    <div class="control-item">
+                        <label>アスペクト比</label>
+                        <div class="button-group" id="aspectButtonGroup">
+                            <button class="btn active" data-aspect="3-2">3:2</button>
+                            <button class="btn" data-aspect="4-3">4:3</button>
+                            <button class="btn" data-aspect="16-9">16:9</button>
+                            <button class="btn" data-aspect="21-9">21:9</button>
+                        </div>
+                    </div>
+                    <div class="control-item">
+                        <label>画像配置</label>
+                        <div class="button-group" id="alignButtonGroup">
+                            <button class="btn" data-align="left">左</button>
+                            <button class="btn active" data-align="center">中央</button>
+                            <button class="btn" data-align="right">右</button>
+                        </div>
+                    </div>
+                    <div class="control-item" id="colorControlItem">
+                        <label>フレーム色 (Leica風のみ)</label>
+                        <div class="button-group" id="colorButtonGroup">
+                            <button class="btn active" data-frame-color="black">黒</button>
+                            <button class="btn" data-frame-color="white">白</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="control-section">
+                <button id="downloadBtn" class="btn btn-primary">画像として保存</button>
+            </div>
+        </div>
+
+        <div class="frame-container">
+            <div class="photo-frame aspect-3-2 align-center leica-template black-frame" id="photoFrame">
+                <div class="photo-area">
+                    <div class="photo-placeholder" id="placeholder">
+                        写真をアップロードしてください
+                    </div>
+                    <img class="photo-img" id="photoImg" alt="アップロードされた写真">
+                </div>
+
+                <!-- Leica風 メタデータ表示領域 -->
+                <div class="metadata-panel leica-metadata-panel">
+                    <div class="metadata-top-row">
+                        <div class="camera-lens-info">
+                            <span id="displayLeicaCameraLens">カメラ機種 + レンズ</span>
+                        </div>
+                    </div>
+                    <div class="metadata-bottom-row">
+                        <div class="shooting-data-details">
+                            <span id="displayLeicaFocal">85mm</span> <span id="displayLeicaAperture">f/2.8</span> <span id="displayLeicaShutter">1/125</span> <span id="displayLeicaISO">ISO 800</span>
+                        </div>
+                        <div class="datetime-info">
+                            <span id="displayLeicaTime">00:00:00</span> <span id="displayLeicaDate">2023.01.01</span>
+                        </div>
+                    </div>
+                    <div class="location-info-display" id="displayLeicaLocation">
+                        撮影場所
+                    </div>
+                </div>
+
+                <!-- Fujifilm風 メタデータ表示領域 -->
+                <div class="metadata-panel fujifilm-metadata-panel">
+                    <p class="fujifilm-camera-text" id="displayFujifilmCamera">Shot on X-E4 FUJIFILM</p>
+                    <p class="fujifilm-shooting-text" id="displayFujifilmShooting">53mm f/1.4 1/105s ISO250</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script defer src="/static/js/main.js"></script>
 </body>
 </html>
