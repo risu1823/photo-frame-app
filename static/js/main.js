@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const ui = {
         photoFrame: document.getElementById('photoFrame'),
+        photoArea: document.getElementById('photoArea'),
         photoImg: document.getElementById('photoImg'),
         placeholder: document.getElementById('placeholder'),
         uploadArea: document.getElementById('uploadArea'),
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputs = {
         cameraInfo: document.getElementById('cameraInfo'),
         shootingDate: document.getElementById('shootingDate'),
+        location: document.getElementById('location'),
         shutterSpeed: document.getElementById('shutterSpeed'),
         aperture: document.getElementById('aperture'),
         iso: document.getElementById('iso'),
@@ -23,12 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const displays = {
-        a: { camera: document.getElementById('display-a-camera'), shooting: document.getElementById('display-a-shooting'), date: document.getElementById('display-a-date') },
+        a: { camera: document.getElementById('display-a-camera'), shooting: document.getElementById('display-a-shooting'), date: document.getElementById('display-a-date'), location: document.getElementById('display-a-location') },
         b: { camera: document.getElementById('display-b-camera'), shooting: document.getElementById('display-b-shooting') },
         c: { shooting: document.getElementById('display-c-shooting') },
     };
 
     let originalImageSrc = null;
+    let originalImageRatio = 1.5; // Default
 
     function setupEventListeners() {
         ui.uploadArea.addEventListener('click', () => ui.photoInput.click());
@@ -55,7 +58,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.photoImg.style.display = 'block';
             ui.placeholder.style.display = 'none';
             const img = new Image();
-            img.onload = () => autoSelectAspectRatio(img.width / img.height);
+            img.onload = () => {
+                originalImageRatio = img.width / img.height;
+                autoSelectAspectRatio(originalImageRatio);
+            };
             img.src = originalImageSrc;
         };
         reader.readAsDataURL(file);
@@ -71,14 +77,21 @@ document.addEventListener('DOMContentLoaded', () => {
             inputs.aperture.value = exif.FNumber ? `f/${exif.FNumber.toFixed(1)}` : '';
             inputs.iso.value = exif.ISOSpeedRatings ? `ISO${exif.ISOSpeedRatings}` : '';
             inputs.focalLength.value = exif.FocalLength ? `${exif.FocalLength}mm` : '';
+            inputs.location.value = '';
             updateMetadata();
         });
     }
 
-    function autoSelectAspectRatio(originalRatio) {
+    function autoSelectAspectRatio(ratio) {
         const presets = [{ name: '3-2', r: 1.5 }, { name: '4-3', r: 4/3 }, { name: '16-9', r: 16/9 }, { name: '1-1', r: 1 }, { name: '21-9', r: 21/9 }];
-        const closest = presets.reduce((p, c) => Math.abs(c.r - originalRatio) < Math.abs(p.r - originalRatio) ? c : p);
-        document.querySelector(`.btn[data-aspect="${closest.name}"]`).click();
+        const closest = presets.reduce((p, c) => Math.abs(c.r - ratio) < Math.abs(p.r - ratio) ? c : p);
+        const targetButton = document.querySelector(`.btn[data-aspect="${closest.name}"]`);
+        if (targetButton) {
+            targetButton.click();
+        } else {
+            // プリセットにない場合は写真の比率を直接適用
+            ui.photoArea.style.aspectRatio = ratio;
+        }
     }
 
     function handleTemplateChange(e) {
@@ -86,21 +99,31 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.templateButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const template = btn.dataset.frameTemplate;
-        ui.photoFrame.className = ui.photoFrame.className.replace(/\w+-template/g, '');
+        ui.photoFrame.className = 'photo-frame'; // Reset classes
         ui.photoFrame.classList.add(template);
+        // Apply active color
+        const activeColor = document.querySelector('#colorButtonGroup .btn.active').dataset.frameColor;
+        ui.photoFrame.classList.add(`${activeColor}-frame`);
+
         ui.colorControlItem.classList.toggle('disabled', template !== 'template-a');
         ui.aspectButtons.forEach(b => b.classList.toggle('disabled', template === 'template-c'));
-        if (template === 'template-c') document.querySelector('.btn[data-aspect="1-1"]').click();
+
+        const activeAspectButton = document.querySelector('#aspectButtonGroup .btn.active');
+        if (template === 'template-c') {
+            document.querySelector('.btn[data-aspect="1-1"]').click();
+        } else if (activeAspectButton) {
+            activeAspectButton.click(); // Re-apply aspect ratio
+        }
         updateMetadata();
     }
 
     function handleAspectChange(e) {
         if (e.currentTarget.classList.contains('disabled')) return;
         ui.aspectButtons.forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        const aspect = e.currentTarget.dataset.aspect;
-        ui.photoFrame.className = ui.photoFrame.className.replace(/aspect-\S+/g, '');
-        ui.photoFrame.classList.add(`aspect-${aspect}`);
+        const btn = e.currentTarget;
+        btn.classList.add('active');
+        const aspect = btn.dataset.aspect.split('-').map(Number);
+        ui.photoArea.style.aspectRatio = aspect[0] / aspect[1];
     }
 
     function handleColorChange(e) {
@@ -116,12 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             camera: inputs.cameraInfo.value,
             date: inputs.shootingDate.value ? new Date(inputs.shootingDate.value) : null,
+            location: inputs.location.value,
             shooting: [inputs.focalLength.value, inputs.aperture.value, inputs.shutterSpeed.value, inputs.iso.value].filter(Boolean).join(' '),
         };
         // Template A
         displays.a.camera.textContent = data.camera;
         displays.a.shooting.textContent = data.shooting;
         displays.a.date.textContent = data.date ? data.date.toLocaleDateString('ja-JP') : '';
+        displays.a.location.textContent = data.location;
         // Template B
         displays.b.camera.textContent = data.camera;
         displays.b.shooting.textContent = data.shooting;
@@ -134,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = type === 'screen' ? ui.downloadScreenBtn : ui.downloadPrintBtn;
         const originalText = btn.textContent;
         btn.textContent = '生成中...'; btn.disabled = true;
-
         try {
             if (type === 'screen') {
                 const canvas = await html2canvas(ui.photoFrame, { useCORS: true, scale: 2 });
@@ -143,12 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvas = await createPrintCanvas();
                 downloadCanvas(canvas, 'photo_frame_print.jpg', 'image/jpeg', 0.8);
             }
-        } catch (error) {
-            console.error(`${type}用画像の生成に失敗:`, error);
-            alert('画像の生成に失敗しました。');
-        } finally {
-            btn.textContent = originalText; btn.disabled = false;
-        }
+        } catch (error) { console.error(`${type}用画像の生成に失敗:`, error); alert('画像の生成に失敗しました。');
+        } finally { btn.textContent = originalText; btn.disabled = false; }
     }
 
     function downloadCanvas(canvas, filename, type, quality) {
@@ -161,33 +181,38 @@ document.addEventListener('DOMContentLoaded', () => {
     async function createPrintCanvas() {
         const settings = {
             template: document.querySelector('#templateButtonGroup .btn.active').dataset.frameTemplate,
-            aspect: document.querySelector('#aspectButtonGroup .btn.active').dataset.aspect.split('-').map(Number),
+            aspectRatio: parseFloat(ui.photoArea.style.aspectRatio) || originalImageRatio,
             isBlack: ui.photoFrame.classList.contains('black-frame'),
-            data: { camera: inputs.cameraInfo.value, date: inputs.shootingDate.value ? new Date(inputs.shootingDate.value) : null, shooting: [inputs.focalLength.value, inputs.aperture.value, inputs.shutterSpeed.value, inputs.iso.value].filter(Boolean).join('  ') },
+            data: { camera: inputs.cameraInfo.value, date: inputs.shootingDate.value ? new Date(inputs.shootingDate.value) : null, location: inputs.location.value, shooting: [inputs.focalLength.value, inputs.aperture.value, inputs.shutterSpeed.value, inputs.iso.value].filter(Boolean).join('  ') },
         };
         
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const targetWidth = 1748; // 葉書サイズ相当
-        const aspectRatio = settings.template === 'template-c' ? 1 : settings.aspect[0] / settings.aspect[1];
+        const targetWidth = Math.round(1748 * 0.98); // 葉書サイズ相当の98%
         
-        const photoH = targetWidth / aspectRatio;
-        const infoH = photoH * (2 / 3);
+        const photoH = targetWidth / settings.aspectRatio;
+        let infoH = photoH * (2 / 3);
         canvas.width = targetWidth;
-        canvas.height = photoH + (settings.template === 'template-a' || settings.template === 'template-b' ? infoH : 0);
-        if (settings.template === 'template-c') canvas.height = targetWidth * 1.4; // 固定比率
-
-        const img = await (new Promise(r => { const i = new Image(); i.crossOrigin="anonymous"; i.onload=()=>r(i); i.src=originalImageSrc; }));
+        canvas.height = photoH;
         
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        const pArea = { x: 0, y: 0, w: targetWidth, h: photoH };
-        if (settings.template === 'template-c') { // Cは写真が中央に小さく
-            pArea.w = targetWidth * 0.85; pArea.h = pArea.w; pArea.x = (targetWidth - pArea.w) / 2; pArea.y = pArea.x;
+        if(settings.template !== 'template-a' && settings.template !== 'template-b' && settings.template !== 'template-c') {
+            infoH = 0; // No info panel for other cases
         }
         
-        // Draw Image
+        if (settings.template === 'template-c') {
+            canvas.height = targetWidth / settings.aspectRatio + targetWidth*0.3; // Specific layout for C
+        } else {
+            canvas.height += infoH;
+        }
+
+        const img = await (new Promise(r => { const i = new Image(); i.crossOrigin="anonymous"; i.onload=()=>r(i); i.src=originalImageSrc; }));
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const pArea = { x: 0, y: 0, w: targetWidth, h: photoH };
+        if (settings.template === 'template-c') {
+             pArea.w = targetWidth; pArea.h = targetWidth / settings.aspectRatio;
+        }
+        
         ctx.fillStyle = '#000'; ctx.fillRect(pArea.x, pArea.y, pArea.w, pArea.h);
         const imgR = img.width / img.height; const areaR = pArea.w / pArea.h;
         let dw, dh, dx, dy;
@@ -195,29 +220,33 @@ document.addEventListener('DOMContentLoaded', () => {
         else { dh=pArea.h; dw=dh*imgR; dx=pArea.x+(pArea.w-dw)/2; dy=pArea.y; }
         ctx.drawImage(img, dx, dy, dw, dh);
         
-        // Draw Info
-        const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: canvas.height - (pArea.y+pArea.h), p: targetWidth*0.04 };
+        const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: infoH, p: targetWidth*0.04 };
+        if(settings.template === 'template-c') {
+            iArea.h = canvas.height - pArea.h;
+        }
+
         ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#111' : '#fff';
         ctx.fillRect(iArea.x, iArea.y, iArea.w, iArea.h);
         ctx.fillStyle = settings.isBlack && settings.template === 'template-a' ? '#fff' : '#333';
-        const baseFont = targetWidth * 0.03;
+        const baseFont = targetWidth * 0.025;
         
         if (settings.template === 'template-a') {
-            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.p, iArea.y + iArea.p*1.5);
-            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillText(settings.data.shooting, iArea.p, iArea.y + iArea.p*3);
-            if (settings.data.date) { ctx.textAlign = 'right'; ctx.fillStyle = settings.isBlack ? '#ccc' : '#888'; ctx.fillText(settings.data.date.toLocaleDateString('ja-JP'), iArea.w-iArea.p, iArea.y + iArea.p*3); ctx.textAlign = 'left'; }
+            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.p, iArea.y + iArea.p);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillText(settings.data.shooting, iArea.p, iArea.y + iArea.p*2);
+            ctx.textAlign = 'right'; ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
+            if (settings.data.date) { ctx.fillText(settings.data.date.toLocaleDateString('ja-JP'), iArea.w-iArea.p, iArea.y + iArea.p*2); }
+            ctx.textAlign = 'left';
+            ctx.font = `italic ${baseFont*0.8}px sans-serif`; ctx.fillText(settings.data.location, iArea.p, iArea.y + iArea.p*3);
         } else if (settings.template === 'template-b') {
             ctx.textAlign = 'right';
-            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.w-iArea.p, iArea.y + infoH/2 - baseFont*0.5);
-            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#666'; ctx.fillText(settings.data.shooting, iArea.w-iArea.p, iArea.y + infoH/2 + baseFont);
+            ctx.font = `bold ${baseFont*1.1}px sans-serif`; ctx.fillText(settings.data.camera, iArea.w-iArea.p, iArea.y + iArea.h/2 - baseFont*0.6);
+            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#666'; ctx.fillText(settings.data.shooting, iArea.w-iArea.p, iArea.y + iArea.h/2 + baseFont*0.8);
             ctx.textAlign = 'left';
         } else if (settings.template === 'template-c') {
-            ctx.textAlign = 'center';
-            ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#555';
-            ctx.fillText(settings.data.shooting, canvas.width/2, pArea.y + pArea.h + (canvas.height - (pArea.y+pArea.h))/2);
+            ctx.textAlign = 'center'; ctx.font = `${baseFont*0.9}px sans-serif`; ctx.fillStyle = '#555';
+            ctx.fillText(settings.data.shooting, canvas.width/2, iArea.y + iArea.h/2);
             ctx.textAlign = 'left';
         }
-
         return canvas;
     }
 
@@ -226,6 +255,5 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('[data-frame-template="template-a"]').click();
         document.querySelector('[data-frame-color="black"]').click();
     }
-
     initialize();
 });
