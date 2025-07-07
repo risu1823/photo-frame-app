@@ -16,7 +16,6 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 .control-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
 .control-item label { display: block; font-size: 0.85em; color: #555; margin-bottom: 5px; }
 .control-item input { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em; color: #333; }
-.control-item.disabled { opacity: 0.5; pointer-events: none; }
 .button-group { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn { padding: 6px 12px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; font-size: 0.85em; color: #555; transition: all 0.2s; }
 .btn.active { background: #333; color: white; border-color: #333; }
@@ -24,37 +23,45 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 
 /* Frame & Preview */
 .frame-container { padding: 40px; background: #fafafa; display: flex; justify-content: center; align-items: center; min-height: 500px; }
-.photo-frame { transition: all 0.3s ease; display: flex; flex-direction: column; max-width: 100%; width: 500px; /* Default width */ }
+.photo-frame { transition: all 0.3s ease; display: flex; flex-direction: column; width: 100%; max-width: 500px; }
 .photo-area { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; width: 100%; }
 .photo-placeholder { color: #999; text-align: center; padding: 60px 40px; background: #f8f8f8; border: 1px dashed #ddd; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: absolute; }
 .photo-img { width: 100%; height: 100%; object-fit: contain; display: none; }
 
 /* Info Panels */
-.info-panel-wrapper { flex-shrink: 0; }
+.info-panel-wrapper { flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
 .info-panel { display: none; padding: 25px; }
+
+/* --- General Color Styles --- */
+.black-frame .info-panel-wrapper { background: #111; color: white; }
+.black-frame .info-panel .date-info, 
+.black-frame .info-panel .location-info { color: #ccc; }
+.black-frame .info-panel .shooting-info { color: #eee; }
+
+.white-frame .info-panel-wrapper { background: white; color: #333; }
+.white-frame .info-panel .date-info, 
+.white-frame .info-panel .location-info { color: #888; }
+.white-frame .info-panel .shooting-info { color: #666; }
 
 /* Template A */
 .template-a .template-a-panel { display: block; }
-.template-a.black-frame .template-a-panel { background: #111; color: white; }
-.template-a.white-frame .template-a-panel { background: white; color: #333; }
 .template-a .a-top-row .camera-info { font-weight: bold; font-size: 1.1em; }
 .template-a .a-middle-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
 .template-a .a-bottom-row { margin-top: 10px; }
 .template-a .shooting-info { font-size: 0.9em; }
-.template-a .date-info { font-size: 0.8em; color: #888; }
-.template-a.black-frame .date-info { color: #ccc; }
-.template-a .location-info { font-size: 0.8em; color: #888; font-style: italic; }
-.template-a.black-frame .location-info { color: #ccc; }
+.template-a .date-info { font-size: 0.8em; }
+.template-a .location-info { font-size: 0.8em; font-style: italic; }
 
 /* Template B */
-.template-b .template-b-panel { display: flex; flex-direction: column; align-items: flex-end; text-align: right; background: white; color: #333; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.template-b .template-b-panel { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .template-b .camera-info { font-weight: bold; font-size: 1.1em; }
-.template-b .shooting-info { font-size: 0.9em; color: #666; }
+.template-b .shooting-info { font-size: 0.9em; }
 
-/* Template C */
+/* Template C (Cheki) */
 .template-c .photo-area { aspect-ratio: 1/1 !important; }
-.template-c .template-c-panel { display: block; padding-top: 15px; padding-bottom: 50px; text-align: center; background: white; box-shadow: 0 2px 15px rgba(0,0,0,0.15); }
-.template-c .shooting-info { font-size: 0.9em; color: #555; }
+.template-c .template-c-panel { display: block; padding-top: 15px; padding-bottom: 50px; text-align: center; }
+.template-c .shooting-info { font-size: 0.9em; }
+
 
 /* Download Controls */
 .download-controls { text-align: center; border-top: 1px solid #e0e0e0; margin-top: 20px; }
@@ -70,5 +77,4 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     .controls, .header { padding: 15px; }
     .control-group { grid-template-columns: 1fr; }
     .frame-container { padding: 15px; }
-    .photo-frame { width: 100% !important; }
 }
