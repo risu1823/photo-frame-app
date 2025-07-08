@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
         constructor() {
             this.ui = {
                 photoFrame: document.getElementById('photoFrame'),
-                photoArea: document.getElementById('photoArea'), // Added photoArea to ui
+                photoArea: document.getElementById('photoArea'), 
                 photoImg: document.getElementById('photoImg'),
                 placeholder: document.getElementById('placeholder'),
                 uploadArea: document.getElementById('uploadArea'),
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.inputs = {
                 cameraInfo: document.getElementById('cameraInfo'),
                 shootingDate: document.getElementById('shootingDate'),
-                location: document.getElementById('location'),
+                // location: document.getElementById('location'), // 撮影場所を削除
                 shutterSpeed: document.getElementById('shutterSpeed'),
                 aperture: document.getElementById('aperture'),
                 iso: document.getElementById('iso'),
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     camera: document.getElementById('display-a-camera'), 
                     shooting: document.getElementById('display-a-shooting'), 
                     date: document.getElementById('display-a-date'), 
-                    location: document.getElementById('display-a-location') 
+                    // location: document.getElementById('display-a-location') // 撮影場所を削除
                 },
                 b: { 
                     camera: document.getElementById('display-b-camera'), 
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 jpegQuality: 0.8 // JPEG圧縮品質
             };
             // 情報帯の高さ比率（写真エリアの高さに対する比率）
-            this.INFO_BAR_RATIO_NORMAL = 1 / 3; // 1/3 (写真エリアの高さの1/3)
+            this.INFO_BAR_RATIO_NORMAL = 1 / 4; // 1/4 (写真エリアの高さの1/4)
             this.INFO_BAR_RATIO_C = 0.4; // Template Cは固定
 
             this.initialize();
@@ -94,7 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.downloadPrintBtn.addEventListener('click', () => this.handleDownload('print'));
 
             // メタデータ入力欄関連
-            Object.values(this.inputs).forEach(input => 
+            // locationを削除したため、inputsからfilterする
+            Object.values(this.inputs).filter(input => input !== this.inputs.location).forEach(input => 
                 input.addEventListener('input', () => this.updateMetadata())
             );
         }
@@ -141,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const imageData = await this.loadImage(file);
                 this.originalImageSrc = imageData.src;
-                this.currentImageOriginalRatio = imageData.ratio; // EXIF解析時の参照用
+                // this.currentImageOriginalRatio = imageData.ratio; // 写真の比率はUIには直接反映しない
 
                 this.displayImage(imageData.src);
                 await this.processExifData(file);
@@ -225,8 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
             this.inputs.iso.value = this.formatISO(exif.ISOSpeedRatings);
             this.inputs.focalLength.value = this.formatFocalLength(exif.FocalLength);
             
-            // 位置情報はEXIFから直接取得しない（プライバシー保護、複雑性回避）
-            this.inputs.location.value = ''; 
+            // locationを削除
+            // this.inputs.location.value = ''; 
         }
 
         sanitizeString(str) {
@@ -274,10 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // テンプレートとアスペクト比の適用ロジック
         applyTemplateAndAspect() {
             const activeTemplateButton = document.querySelector('#templateButtonGroup .btn.active');
-            const activeTemplate = activeTemplateButton ? activeTemplateButton.dataset.frameTemplate : 'template-a'; // Default
+            const activeTemplate = activeTemplateButton ? activeTemplateButton.dataset.frame-template : 'template-a'; // Default
             
             const activeColorButton = document.querySelector('#colorButtonGroup .btn.active');
-            const activeColor = activeColorButton ? activeColorButton.dataset.frameColor : 'black'; // Default
+            const activeColor = activeColorButton ? activeColorButton.dataset.frame-color : 'black'; // Default
 
             // photoFrameのクラスをリセットして再適用
             this.ui.photoFrame.className = 'photo-frame'; // Reset all classes
@@ -291,10 +292,29 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.colorControlItem.classList.remove('disabled');
 
             // アスペクト比の適用
-            let targetAspectRatio = this.ASPECT_RATIOS[document.querySelector('#aspectButtonGroup .btn.active').dataset.aspect];
+            // 選択されたアスペクト比ボタンのdata-aspect値を使用
+            const selectedAspectButton = document.querySelector('#aspectButtonGroup .btn.active');
+            let targetAspectRatio = this.ASPECT_RATIOS['3-2']; // デフォルト値
+            if (selectedAspectButton) {
+                targetAspectRatio = this.ASPECT_RATIOS[selectedAspectButton.dataset.aspect];
+            }
+            
             if (isTemplateC) {
                 targetAspectRatio = this.ASPECT_RATIOS['1-1']; // テンプレートCは正方形に固定
+                // 1:1ボタンをアクティブにし、他を非アクティブに (UI表示のみ)
+                this.ui.aspectButtons.forEach(b => {
+                    if (b.dataset.aspect === '1-1') {
+                        b.classList.add('active');
+                    } else {
+                        b.classList.remove('active');
+                    }
+                });
+            } else {
+                 // テンプレートC以外では、現在アクティブなアスペクト比ボタンをUIに反映
+                 this.autoSelectAspectRatioButton(targetAspectRatio); // 現在選択されているアスペクト比をアクティブにする
             }
+
+            // photo-area にアスペクト比を適用
             this.ui.photoArea.style.aspectRatio = targetAspectRatio;
             
             // CSS変数 --current-photo-height の更新 (情報帯の高さ計算用)
@@ -306,25 +326,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.updateMetadata();
         }
 
-        // アスペクト比ボタンの自動選択 (初期化時のみ)
+        // アスペクト比ボタンのアクティブ状態を更新する関数 (自動選択ではなく、指定された比率をアクティブにする)
         autoSelectAspectRatioButton(ratio) {
-            const presets = Object.keys(this.ASPECT_RATIOS).map(key => ({
-                name: key,
-                r: this.ASPECT_RATIOS[key]
-            }));
-
-            let closestPreset = presets.reduce((prev, curr) => 
-                Math.abs(curr.r - ratio) < Math.abs(prev.r - ratio) ? curr : prev
-            );
-            
-            // アクティブボタンをリセット
-            this.ui.aspectButtons.forEach(b => b.classList.remove('active'));
-            // 最も近いボタンをアクティブに
-            const targetButton = document.querySelector(`#aspectButtonGroup .btn[data-aspect="${closestPreset.name}"]`);
-            if (targetButton) {
-                targetButton.classList.add('active');
-            }
+             this.ui.aspectButtons.forEach(b => {
+                const btnRatio = this.ASPECT_RATIOS[b.dataset.aspect];
+                // 厳密な比較ではなく、誤差を許容する比較
+                if (Math.abs(btnRatio - ratio) < 0.001) { 
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+             });
         }
+
 
         // イベントハンドラー：テンプレート変更
         handleTemplateChange(e) {
@@ -350,6 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const color = e.currentTarget.dataset.frameColor;
             this.ui.photoFrame.classList.remove('black-frame', 'white-frame');
             this.ui.photoFrame.classList.add(`${color}-frame`);
+            // 写真エリアと情報帯の背景色をフレームカラーと同期
+            this.ui.photoArea.style.backgroundColor = color === 'black' ? '#111' : '#fff';
+            this.ui.photoFrame.querySelector('.info-panel-wrapper').style.backgroundColor = color === 'black' ? '#111' : '#fff';
         }
 
         // メタデータ表示の更新
@@ -359,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.displays.a.camera.textContent = data.camera || 'カメラ機種';
             this.displays.a.shooting.textContent = data.shooting || '撮影データ';
             this.displays.a.date.textContent = data.date ? data.date.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '撮影日時';
-            this.displays.a.location.textContent = data.location || '撮影場所';
+            // this.displays.a.location.textContent = data.location || '撮影場所'; // locationを削除
 
             this.displays.b.camera.textContent = data.camera || 'カメラ機種';
             this.displays.b.shooting.textContent = data.shooting || '撮影データ';
@@ -372,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 camera: this.inputs.cameraInfo.value,
                 date: this.inputs.shootingDate.value ? new Date(this.inputs.shootingDate.value) : null,
-                location: this.inputs.location.value,
+                // location: this.inputs.location.value, // locationを削除
                 shooting: [this.inputs.focalLength.value, this.inputs.aperture.value, this.inputs.shutterSpeed.value, this.inputs.iso.value].filter(Boolean).join(' '),
             };
         }
@@ -423,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 情報帯の高さを調整
             if (settings.template === 'template-a' || settings.template === 'template-b') {
-                infoHeight = photoHeight * this.INFO_BAR_RATIO_NORMAL; // 写真エリアの1/3
+                infoHeight = photoHeight * this.INFO_BAR_RATIO_NORMAL; // 写真エリアの1/4
             } else if (settings.template === 'template-c') {
                 // Template C は写真部分が正方形、情報帯も大きめに固定
                 photoHeight = targetWidth; // Template Cでは写真エリア自体が正方形になるように幅と同じ高さに
@@ -436,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = await this.loadImageForPrint(this.originalImageSrc);
             
             // フレームの背景色の描画 (写真エリアと情報帯の共通背景)
-            ctx.fillStyle = settings.isBlack ? '#111' : '#fff';
+            ctx.fillStyle = settings.isBlack ? '#111' : '#fff'; // フレームカラー
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // 写真エリアの座標とサイズ
@@ -455,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 情報帯の描画
             // y座標は写真エリアの直下から
             const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: infoHeight, p: targetWidth * 0.04 }; // p: padding
-            ctx.fillStyle = settings.isBlack ? '#fff' : '#333'; // 情報帯のテキスト色
+            // ctx.fillStyleはdrawTemplateInfo内で設定される
             const baseFont = targetWidth * 0.022; // 印刷用の基本フォントサイズ
             
             this.drawTemplateInfo(ctx, settings, iArea, baseFont); // 各テンプレートごとの情報描画
@@ -543,10 +560,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     ctx.textAlign = 'left'; // リセット
                     
-                    // 撮影場所
-                    ctx.font = `italic ${baseFont * 0.8}px sans-serif`;
-                    ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
-                    ctx.fillText(settings.data.location || '撮影場所', iArea.p, iArea.y + iArea.p * 3.6); 
+                    // 撮影場所（削除）
+                    // ctx.font = `italic ${baseFont * 0.8}px sans-serif`;
+                    // ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
+                    // ctx.fillText(settings.data.location || '撮影場所', iArea.p, iArea.y + iArea.p * 3.6); 
                     break;
 
                 case 'template-b':
