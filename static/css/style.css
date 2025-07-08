@@ -25,7 +25,10 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 
 /* Frame & Preview */
 .frame-container { padding: 40px; background: #fafafa; display: flex; justify-content: center; align-items: center; min-height: 500px; }
-.photo-frame { transition: all 0.3s ease; display: flex; flex-direction: column; 
+.photo-frame { 
+    transition: all 0.3s ease; 
+    display: flex; 
+    flex-direction: column; 
     width: 400px; /* デスクトッププレビューのフレーム幅を固定 */
     max-width: 100%; /* 親要素からはみ出さないように */
 } 
@@ -89,11 +92,12 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
 .info-panel { display: none; padding: 25px; width: 100%; } 
 
 /* Aspect Ratios (width of photo-frame, height of photo-area controlled by aspect-ratio) */
-.aspect-3-2 { --aspect-ratio: 3/2; --current-photo-height: 267px; } /* 400 / (3/2) */
-.aspect-4-3 { --aspect-ratio: 4/3; --current-photo-height: 300px; } /* 400 / (4/3) */
-.aspect-16-9 { --aspect-ratio: 16/9; --current-photo-height: 225px; } /* 400 / (16/9) */
-.aspect-1-1 { --aspect-ratio: 1/1; --current-photo-height: 400px; } /* 400 / (1/1) */
-.aspect-21-9 { --aspect-ratio: 21/9; --current-photo-height: 171px; } /* 400 / (21/9) */
+/* これらの幅と高さはプレビューの最大サイズと関連し、photo-areaのaspect-ratioで高さを制御 */
+.aspect-3-2 { width: 400px; --current-photo-height: 267px; } 
+.aspect-4-3 { width: 400px; --current-photo-height: 300px; } 
+.aspect-16-9 { width: 400px; --current-photo-height: 225px; } 
+.aspect-1-1 { width: 400px; --current-photo-height: 400px; } 
+.aspect-21-9 { width: 400px; --current-photo-height: 171px; } 
 
 /* Apply aspect-ratio to photo-area based on selected frame aspect */
 .photo-area {
