@@ -144,8 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayImage(src) {
             this.ui.photoImg.src = src;
-            this.ui.photoImg.style.objectFit = 'contain'; // JavaScriptからobject-fitを適用
-            this.ui.photoImg.style.display = 'block'; // 確実に表示
+            // CSSで制御するため、JSからの直接スタイル操作は削除
+            // this.ui.photoImg.style.objectFit = 'contain'; 
+            // this.ui.photoImg.style.display = 'block'; 
             this.ui.placeholder.style.display = 'none'; // 写真表示時にplaceholderを非表示
         }
 
@@ -266,7 +267,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.photoArea.style.aspectRatio = targetAspectRatio;
             
             // CSS変数 --current-photo-height の更新 (情報帯の高さ計算用)
-            // photoAreaの現在の横幅とaspectRatioから高さを計算してCSS変数にセット
             requestAnimationFrame(() => {
                 const currentPhotoAreaWidth = parseFloat(getComputedStyle(this.ui.photoArea).width);
                 const calculatedPhotoHeight = currentPhotoAreaWidth / targetAspectRatio;
