@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 photoInput: document.getElementById('photoInput'),
                 templateButtons: document.querySelectorAll('#templateButtonGroup .btn'),
                 aspectButtons: document.querySelectorAll('#aspectButtonGroup .btn'),
-                colorControlItem: document.getElementById('colorControlItem'),
                 colorButtons: document.querySelectorAll('#colorButtonGroup .btn'),
                 downloadScreenBtn: document.getElementById('downloadScreenBtn'),
                 downloadPrintBtn: document.getElementById('downloadPrintBtn'),
@@ -19,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.inputs = {
                 cameraInfo: document.getElementById('cameraInfo'),
                 shootingDate: document.getElementById('shootingDate'),
-                // location: document.getElementById('location'), // 撮影場所を削除
                 shutterSpeed: document.getElementById('shutterSpeed'),
                 aperture: document.getElementById('aperture'),
                 iso: document.getElementById('iso'),
@@ -31,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     camera: document.getElementById('display-a-camera'), 
                     shooting: document.getElementById('display-a-shooting'), 
                     date: document.getElementById('display-a-date'), 
-                    // location: document.getElementById('display-a-location') // 撮影場所を削除
                 },
                 b: { 
                     camera: document.getElementById('display-b-camera'), 
@@ -43,20 +40,14 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             this.originalImageSrc = null;
-            // originalImageRatioは写真表示には使わず、EXIF解析時の参照用
-            this.originalImageRatio = 3 / 2; 
+            this.originalImageRatio = 3 / 2; // EXIF解析時の参照用。UI表示には直接使用しない
 
             // 定数定義 (マジックナンバーの排除)
             this.ASPECT_RATIOS = {
-                '3-2': 3/2,
-                '4-3': 4/3,
-                '16-9': 16/9,
-                '1-1': 1/1,
-                '21-9': 21/9
+                '3-2': 3/2, '4-3': 4/3, '16-9': 16/9, '1-1': 1/1, '21-9': 21/9
             };
             this.PRINT_SETTINGS = {
                 targetWidth: 3840, // 4Kの横幅に設定
-                printResolution: 300, // dpi
                 maxFileSize: 60 * 1024 * 1024, // 60MB
                 jpegQuality: 0.8 // JPEG圧縮品質
             };
@@ -73,29 +64,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         setupEventListeners() {
-            // アップロード関連
             this.ui.uploadArea.addEventListener('click', () => this.ui.photoInput.click());
             this.setupDragAndDrop();
             this.ui.photoInput.addEventListener('change', (e) => this.handleFileInput(e));
 
-            // コントロールボタン関連
             this.ui.templateButtons.forEach(btn => 
-                btn.addEventListener('click', (e) => this.handleTemplateChange(e))
+                btn.addEventListener('click', () => this.applyTemplateAndAspect(btn.dataset.frameTemplate)) // テンプレート名を直接渡す
             );
             this.ui.aspectButtons.forEach(btn => 
-                btn.addEventListener('click', (e) => this.handleAspectChange(e))
+                btn.addEventListener('click', () => this.handleAspectChange(btn))
             );
             this.ui.colorButtons.forEach(btn => 
-                btn.addEventListener('click', (e) => this.handleColorChange(e))
+                btn.addEventListener('click', () => this.handleColorChange(btn))
             );
 
-            // ダウンロードボタン関連
             this.ui.downloadScreenBtn.addEventListener('click', () => this.handleDownload('screen'));
             this.ui.downloadPrintBtn.addEventListener('click', () => this.handleDownload('print'));
 
-            // メタデータ入力欄関連
-            // locationを削除したため、inputsからfilterする
-            Object.values(this.inputs).filter(input => input !== this.inputs.location).forEach(input => 
+            Object.values(this.inputs).forEach(input => 
                 input.addEventListener('input', () => this.updateMetadata())
             );
         }
@@ -104,13 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ['dragover', 'dragleave', 'drop'].forEach(eventName => 
                 this.ui.uploadArea.addEventListener(eventName, (e) => e.preventDefault())
             );
-
-            this.ui.uploadArea.addEventListener('dragover', () => 
-                this.ui.uploadArea.classList.add('dragover')
-            );
-            this.ui.uploadArea.addEventListener('dragleave', () => 
-                this.ui.uploadArea.classList.remove('dragover')
-            );
+            this.ui.uploadArea.addEventListener('dragover', () => this.ui.uploadArea.classList.add('dragover'));
+            this.ui.uploadArea.addEventListener('dragleave', () => this.ui.uploadArea.classList.remove('dragover'));
             this.ui.uploadArea.addEventListener('drop', (e) => {
                 this.ui.uploadArea.classList.remove('dragover');
                 if (e.dataTransfer.files.length) {
@@ -125,29 +106,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ファイルのバリデーション
         validateFile(file) {
-            if (!file.type.startsWith('image/')) {
-                throw new Error('画像ファイルを選択してください。');
-            }
-            if (file.size > this.PRINT_SETTINGS.maxFileSize) {
-                throw new Error(`ファイルサイズが大きすぎます。${this.PRINT_SETTINGS.maxFileSize / (1024 * 1024)}MB以下のファイルを選択してください。`);
-            }
+            if (!file.type.startsWith('image/')) throw new Error('画像ファイルを選択してください。');
+            if (file.size > this.PRINT_SETTINGS.maxFileSize) throw new Error(`ファイルサイズが大きすぎます。${this.PRINT_SETTINGS.maxFileSize / (1024 * 1024)}MB以下のファイルを選択してください。`);
             return true;
         }
 
         async handleFile(file) {
             try {
                 this.validateFile(file);
-                
                 const imageData = await this.loadImage(file);
                 this.originalImageSrc = imageData.src;
-                // this.currentImageOriginalRatio = imageData.ratio; // 写真の比率はUIには直接反映しない
-
+                
                 this.displayImage(imageData.src);
                 await this.processExifData(file);
-                this.applyTemplateAndAspect(); // 画像読み込み後にテンプレートとアスペクト比を再適用
-                
+                this.applyTemplateAndAspect(); // 画像読み込み後もUIを更新
             } catch (error) {
                 console.error('ファイル処理エラー:', error);
                 alert(error.message || 'ファイルの処理に失敗しました。');
@@ -159,12 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
-                    img.onload = () => {
-                        resolve({
-                            src: e.target.result,
-                            ratio: img.width / img.height
-                        });
-                    };
+                    img.onload = () => resolve({ src: e.target.result, ratio: img.width / img.height });
                     img.onerror = () => reject(new Error('画像の読み込みに失敗しました。'));
                     img.src = e.target.result;
                 };
@@ -176,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         displayImage(src) {
             this.ui.photoImg.src = src;
             this.ui.photoImg.style.display = 'block';
-            this.ui.placeholder.style.display = 'none';
+            this.ui.placeholder.style.display = 'none'; // 写真表示時にplaceholderを非表示
         }
 
         async processExifData(file) {
@@ -188,8 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.updateMetadata();
                     } catch (error) {
                         console.warn('EXIF データの処理に失敗（データが存在しないか不正な可能性があります）。', error);
-                        // EXIF読み込み失敗時は入力欄をクリア
-                        Object.values(this.inputs).forEach(input => input.value = '');
+                        Object.values(this.inputs).forEach(input => input.value = ''); // EXIF読み込み失敗時は入力欄をクリア
                         this.updateMetadata();
                     }
                     resolve();
@@ -198,40 +165,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         extractExifData(exif) {
-            // カメラ情報の安全な取得 (XSS対策としてサニタイズ)
             const make = this.sanitizeString(exif.Make || '');
             const model = this.sanitizeString(exif.Model || '');
             this.inputs.cameraInfo.value = `${make} ${model}`.trim();
 
-            // 撮影日時の処理 (YYYY-MM-DDTHH:MM 形式に変換)
             if (exif.DateTimeOriginal) {
                 try {
                     const [datePart, timePart] = exif.DateTimeOriginal.split(' ');
                     if (datePart && timePart) {
                         this.inputs.shootingDate.value = `${datePart.replace(/:/g, '-') || ''}T${timePart || ''}`;
-                    } else {
-                        this.inputs.shootingDate.value = ''; // 不正なフォーマットは空に
-                    }
-                } catch (error) {
-                    console.warn('EXIF撮影日時の解析に失敗。', error);
-                    this.inputs.shootingDate.value = '';
-                }
-            } else {
-                 this.inputs.shootingDate.value = ''; // EXIF情報がない場合も空に
-            }
+                    } else { this.inputs.shootingDate.value = ''; }
+                } catch (error) { console.warn('EXIF撮影日時の解析に失敗。', error); this.inputs.shootingDate.value = ''; }
+            } else { this.inputs.shootingDate.value = ''; }
 
-            // 撮影設定の処理
             this.inputs.shutterSpeed.value = this.formatShutterSpeed(exif.ExposureTime);
             this.inputs.aperture.value = this.formatAperture(exif.FNumber);
             this.inputs.iso.value = this.formatISO(exif.ISOSpeedRatings);
             this.inputs.focalLength.value = this.formatFocalLength(exif.FocalLength);
-            
-            // locationを削除
-            // this.inputs.location.value = ''; 
         }
 
         sanitizeString(str) {
-            // HTMLエンティティに変換することでXSSを防ぐ
             const div = document.createElement('div');
             div.appendChild(document.createTextNode(str));
             return div.innerHTML;
@@ -239,11 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         formatShutterSpeed(exposureTime) {
             if (exposureTime === undefined || exposureTime === null) return '';
-            // 露出時間が分数形式（例: 1/125）で格納されている場合があるので、その対応
-            if (typeof exposureTime === 'number') {
-                return exposureTime >= 1 ? `${exposureTime}s` : `1/${Math.round(1 / exposureTime)}s`;
-            } else if (typeof exposureTime === 'object' && 'numerator' in exposureTime && 'denominator' in exposureTime) {
-                // EXIF-JSはRationalオブジェクトとして返すことがある
+            if (typeof exposureTime === 'number') return exposureTime >= 1 ? `${exposureTime}s` : `1/${Math.round(1 / exposureTime)}s`;
+            if (typeof exposureTime === 'object' && 'numerator' in exposureTime && 'denominator' in exposureTime) {
                 const value = exposureTime.numerator / exposureTime.denominator;
                 return value >= 1 ? `${value}s` : `1/${Math.round(1 / value)}s`;
             }
@@ -253,9 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formatAperture(fNumber) {
             if (fNumber === undefined || fNumber === null) return '';
             if (typeof fNumber === 'number') return `f/${fNumber.toFixed(1)}`;
-            if (typeof fNumber === 'object' && 'numerator' in fNumber && 'denominator' in fNumber) {
-                return `f/${(fNumber.numerator / fNumber.denominator).toFixed(1)}`;
-            }
+            if (typeof fNumber === 'object' && 'numerator' in fNumber && 'denominator' in fNumber) return `f/${(fNumber.numerator / fNumber.denominator).toFixed(1)}`;
             return '';
         }
 
@@ -266,36 +214,34 @@ document.addEventListener('DOMContentLoaded', () => {
         formatFocalLength(focalLength) {
             if (focalLength === undefined || focalLength === null) return '';
             if (typeof focalLength === 'number') return `${focalLength}mm`;
-            if (typeof focalLength === 'object' && 'numerator' in focalLength && 'denominator' in focalLength) {
-                return `${(focalLength.numerator / focalLength.denominator).toFixed(0)}mm`; // 整数で表示
-            }
+            if (typeof focalLength === 'object' && 'numerator' in focalLength && 'denominator' in focalLength) return `${(focalLength.numerator / focalLength.denominator).toFixed(0)}mm`;
             return '';
         }
 
-        // テンプレートとアスペクト比の適用ロジック
-        applyTemplateAndAspect() {
-            const activeTemplateButton = document.querySelector('#templateButtonGroup .btn.active');
-            const activeTemplate = activeTemplateButton ? activeTemplateButton.dataset.frame-template : 'template-a'; // Default
+        // テンプレートとアスペクト比の適用ロジック (主要な修正箇所)
+        applyTemplateAndAspect(templateNameFromClick = null) { // クリックからのテンプレート名を受け取る
+            // 現在アクティブなテンプレートとカラーを取得
+            const activeTemplateButton = templateNameFromClick ? 
+                                         document.querySelector(`[data-frame-template="${templateNameFromClick}"]`) : 
+                                         document.querySelector('#templateButtonGroup .btn.active');
+            const currentTemplate = activeTemplateButton ? activeTemplateButton.dataset.frameTemplate : 'template-a'; // Default
             
             const activeColorButton = document.querySelector('#colorButtonGroup .btn.active');
-            const activeColor = activeColorButton ? activeColorButton.dataset.frame-color : 'black'; // Default
+            const currentColor = activeColorButton ? activeColorButton.dataset.frameColor : 'black'; // Default
 
             // photoFrameのクラスをリセットして再適用
             this.ui.photoFrame.className = 'photo-frame'; // Reset all classes
-            this.ui.photoFrame.classList.add(activeTemplate, `${activeColor}-frame`);
+            this.ui.photoFrame.classList.add(currentTemplate, `${currentColor}-frame`);
 
-            const isTemplateC = (activeTemplate === 'template-c');
+            const isTemplateC = (currentTemplate === 'template-c');
             
             // アスペクト比ボタンの有効/無効切り替え (テンプレートCのみ無効)
             this.ui.aspectButtons.forEach(b => b.classList.toggle('disabled', isTemplateC));
-            // フレームカラーボタンは常に有効（どのテンプレートでも色変更可能になったため）
-            this.ui.colorControlItem.classList.remove('disabled');
-
-            // アスペクト比の適用
-            // 選択されたアスペクト比ボタンのdata-aspect値を使用
+            
+            // 現在選択されているアスペクト比ボタンから比率を取得
             const selectedAspectButton = document.querySelector('#aspectButtonGroup .btn.active');
             let targetAspectRatio = this.ASPECT_RATIOS['3-2']; // デフォルト値
-            if (selectedAspectButton) {
+            if (selectedAspectButton && !selectedAspectButton.classList.contains('disabled')) { // disabledでないボタンのdatasetを優先
                 targetAspectRatio = this.ASPECT_RATIOS[selectedAspectButton.dataset.aspect];
             }
             
@@ -319,18 +265,30 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // CSS変数 --current-photo-height の更新 (情報帯の高さ計算用)
             // photoAreaの現在の横幅とaspectRatioから高さを計算してCSS変数にセット
-            const currentPhotoAreaWidth = this.ui.photoArea.clientWidth; // 実測値を取得
-            const calculatedPhotoHeight = currentPhotoAreaWidth / targetAspectRatio;
-            this.ui.photoFrame.style.setProperty('--current-photo-height', `${calculatedPhotoHeight}px`);
+            // getComputedStyleを使用して正確なpx値を取得
+            // requestAnimationFrame でDOMが更新されてからclientWidthを取得
+            requestAnimationFrame(() => {
+                const currentPhotoAreaWidth = parseFloat(getComputedStyle(this.ui.photoArea).width);
+                const calculatedPhotoHeight = currentPhotoAreaWidth / targetAspectRatio;
+                this.ui.photoFrame.style.setProperty('--current-photo-height', `${calculatedPhotoHeight}px`);
+            });
 
             this.updateMetadata();
         }
 
-        // アスペクト比ボタンのアクティブ状態を更新する関数 (自動選択ではなく、指定された比率をアクティブにする)
+        // アスペクト比ボタンのアクティブ状態を更新する関数 (クリックされたボタンをアクティブにする)
+        handleAspectChange(clickedButton) {
+            if (clickedButton.classList.contains('disabled')) return; // テンプレートCで無効化されている場合は何もしない
+            
+            this.ui.aspectButtons.forEach(b => b.classList.remove('active'));
+            clickedButton.classList.add('active');
+            this.applyTemplateAndAspect(); // 新しいアスペクト比を適用
+        }
+
+        // アスペクト比ボタンのアクティブ状態を更新する関数 (自動選択用)
         autoSelectAspectRatioButton(ratio) {
              this.ui.aspectButtons.forEach(b => {
                 const btnRatio = this.ASPECT_RATIOS[b.dataset.aspect];
-                // 厳密な比較ではなく、誤差を許容する比較
                 if (Math.abs(btnRatio - ratio) < 0.001) { 
                     b.classList.add('active');
                 } else {
@@ -339,34 +297,13 @@ document.addEventListener('DOMContentLoaded', () => {
              });
         }
 
-
-        // イベントハンドラー：テンプレート変更
-        handleTemplateChange(e) {
-            this.ui.templateButtons.forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            this.applyTemplateAndAspect(); // テンプレート変更時にアスペクト比も再適用
-        }
-
-        // イベントハンドラー：アスペクト比変更
-        handleAspectChange(e) {
-            const btn = e.currentTarget;
-            if (btn.classList.contains('disabled')) return; // テンプレートCで無効化されている場合は何もしない
-            
-            this.ui.aspectButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            this.applyTemplateAndAspect(); // 新しいアスペクト比を適用
-        }
-
         // イベントハンドラー：フレームカラー変更
-        handleColorChange(e) {
+        handleColorChange(clickedButton) {
             this.ui.colorButtons.forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            const color = e.currentTarget.dataset.frameColor;
-            this.ui.photoFrame.classList.remove('black-frame', 'white-frame');
-            this.ui.photoFrame.classList.add(`${color}-frame`);
-            // 写真エリアと情報帯の背景色をフレームカラーと同期
-            this.ui.photoArea.style.backgroundColor = color === 'black' ? '#111' : '#fff';
-            this.ui.photoFrame.querySelector('.info-panel-wrapper').style.backgroundColor = color === 'black' ? '#111' : '#fff';
+            clickedButton.classList.add('active');
+            const color = clickedButton.dataset.frameColor;
+            // applyTemplateAndAspectを呼び出すことで、クラスの付け替えと背景色同期をまとめて処理
+            this.applyTemplateAndAspect(); 
         }
 
         // メタデータ表示の更新
@@ -376,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.displays.a.camera.textContent = data.camera || 'カメラ機種';
             this.displays.a.shooting.textContent = data.shooting || '撮影データ';
             this.displays.a.date.textContent = data.date ? data.date.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '撮影日時';
-            // this.displays.a.location.textContent = data.location || '撮影場所'; // locationを削除
 
             this.displays.b.camera.textContent = data.camera || 'カメラ機種';
             this.displays.b.shooting.textContent = data.shooting || '撮影データ';
@@ -389,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 camera: this.inputs.cameraInfo.value,
                 date: this.inputs.shootingDate.value ? new Date(this.inputs.shootingDate.value) : null,
-                // location: this.inputs.location.value, // locationを削除
                 shooting: [this.inputs.focalLength.value, this.inputs.aperture.value, this.inputs.shutterSpeed.value, this.inputs.iso.value].filter(Boolean).join(' '),
             };
         }
@@ -560,10 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     ctx.textAlign = 'left'; // リセット
                     
-                    // 撮影場所（削除）
-                    // ctx.font = `italic ${baseFont * 0.8}px sans-serif`;
-                    // ctx.fillStyle = settings.isBlack ? '#ccc' : '#888';
-                    // ctx.fillText(settings.data.location || '撮影場所', iArea.p, iArea.y + iArea.p * 3.6); 
                     break;
 
                 case 'template-b':
