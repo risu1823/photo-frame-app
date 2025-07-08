@@ -144,7 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayImage(src) {
             this.ui.photoImg.src = src;
-            this.ui.photoImg.style.display = 'block';
+            this.ui.photoImg.style.objectFit = 'contain'; // JavaScriptからobject-fitを適用
+            this.ui.photoImg.style.display = 'block'; // 確実に表示
             this.ui.placeholder.style.display = 'none'; // 写真表示時にplaceholderを非表示
         }
 
@@ -219,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return '';
         }
 
-        // テンプレートとアスペクト比の適用ロジック (主要な修正箇所)
+        // テンプレートとアスペクト比の適用ロジック
         applyTemplateAndAspect(templateNameFromClick = null) { // クリックからのテンプレート名を受け取る
             // 現在アクティブなテンプレートとカラーを取得
             const activeTemplateButton = templateNameFromClick ? 
@@ -266,8 +267,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // CSS変数 --current-photo-height の更新 (情報帯の高さ計算用)
             // photoAreaの現在の横幅とaspectRatioから高さを計算してCSS変数にセット
-            // getComputedStyleを使用して正確なpx値を取得
-            // requestAnimationFrame でDOMが更新されてからclientWidthを取得
             requestAnimationFrame(() => {
                 const currentPhotoAreaWidth = parseFloat(getComputedStyle(this.ui.photoArea).width);
                 const calculatedPhotoHeight = currentPhotoAreaWidth / targetAspectRatio;
