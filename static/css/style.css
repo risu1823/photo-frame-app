@@ -58,9 +58,10 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     position: absolute; 
 }
 /* 写真が切り取られないようにする重要な設定 */
+/* IDセレクタ + !important で強制的に適用 */
 #photoArea .photo-img { 
-    width: 100%; 
-    height: 100%; 
+    width: 100% !important; 
+    height: 100% !important; 
     object-fit: contain !important; /* これで常に全体が表示されます */
     display: block; /* デフォルトで表示 */
     image-rendering: -webkit-optimize-contrast; /* Webkitでの低解像度ぼやけ対策 */
