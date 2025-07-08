@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             this.originalImageSrc = null;
-            this.originalImageRatio = 3 / 2; // EXIF解析時の参照用。UI表示には直接使用しない
+            // originalImageRatioは写真表示用ではなく、写真のロード時に取得される写真自体の比率
+            this.currentLoadedImageRatio = 3 / 2; // デフォルト値（写真が未ロードの場合の仮の比率）
 
             // 定数定義 (マジックナンバーの排除)
             this.ASPECT_RATIOS = {
@@ -51,9 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 maxFileSize: 60 * 1024 * 1024, // 60MB
                 jpegQuality: 0.8 // JPEG圧縮品質
             };
-            // 情報帯の高さ比率（写真エリアの高さに対する比率）
-            this.INFO_BAR_RATIO_NORMAL = 1 / 4; // 1/4 (写真エリアの高さの1/4)
-            this.INFO_BAR_RATIO_C = 0.4; // Template Cは固定
+            // 情報帯の高さ比率（写真エリアの高さに対する比率ではない、フレーム全体の幅に対する比率）
+            this.INFO_BAR_HEIGHT_RATIOS = { // 基準となるフレーム幅に対する情報帯の高さの比率
+                '3-2': 0.25, // 例: フレーム幅400pxなら情報帯高さ100px
+                '4-3': 0.25,
+                '16-9': 0.25,
+                '1-1': 0.25,
+                '21-9': 0.25,
+                'template-c-fixed': 0.4 // Template C専用
+            };
+            this.DEFAULT_FRAME_WIDTH = 400; // プレビューの基本フレーム幅
 
             this.initialize();
         }
@@ -69,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.ui.photoInput.addEventListener('change', (e) => this.handleFileInput(e));
 
             this.ui.templateButtons.forEach(btn => 
-                btn.addEventListener('click', () => this.applyTemplateAndAspect(btn.dataset.frameTemplate)) // テンプレート名を直接渡す
+                btn.addEventListener('click', () => this.applyTemplateAndAspect(btn.dataset.frameTemplate)) 
             );
             this.ui.aspectButtons.forEach(btn => 
                 btn.addEventListener('click', () => this.handleAspectChange(btn))
@@ -118,10 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const imageData = await this.loadImage(file);
                 this.originalImageSrc = imageData.src;
-                
+                this.currentLoadedImageRatio = imageData.ratio; // ロードされた写真の実際の比率
+
                 this.displayImage(imageData.src);
                 await this.processExifData(file);
-                this.applyTemplateAndAspect(); // 画像読み込み後もUIを更新
+                this.applyTemplateAndAspect(); // 画像ロード後、UIの更新とアスペクト比の再適用
             } catch (error) {
                 console.error('ファイル処理エラー:', error);
                 alert(error.message || 'ファイルの処理に失敗しました。');
@@ -144,10 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayImage(src) {
             this.ui.photoImg.src = src;
-            // CSSで制御するため、JSからの直接スタイル操作は削除
-            // this.ui.photoImg.style.objectFit = 'contain'; 
-            // this.ui.photoImg.style.display = 'block'; 
-            this.ui.placeholder.style.display = 'none'; // 写真表示時にplaceholderを非表示
+            this.ui.photoImg.style.display = 'block'; 
+            this.ui.placeholder.style.display = 'none'; 
         }
 
         async processExifData(file) {
@@ -159,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         this.updateMetadata();
                     } catch (error) {
                         console.warn('EXIF データの処理に失敗（データが存在しないか不正な可能性があります）。', error);
-                        Object.values(this.inputs).forEach(input => input.value = ''); // EXIF読み込み失敗時は入力欄をクリア
+                        Object.values(this.inputs).forEach(input => input.value = ''); 
                         this.updateMetadata();
                     }
                     resolve();
@@ -221,19 +228,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return '';
         }
 
-        // テンプレートとアスペクト比の適用ロジック
-        applyTemplateAndAspect(templateNameFromClick = null) { // クリックからのテンプレート名を受け取る
-            // 現在アクティブなテンプレートとカラーを取得
+        // テンプレートとアスペクト比の適用ロジック (主要な修正箇所)
+        applyTemplateAndAspect(templateNameFromClick = null) {
             const activeTemplateButton = templateNameFromClick ? 
                                          document.querySelector(`[data-frame-template="${templateNameFromClick}"]`) : 
                                          document.querySelector('#templateButtonGroup .btn.active');
-            const currentTemplate = activeTemplateButton ? activeTemplateButton.dataset.frameTemplate : 'template-a'; // Default
+            const currentTemplate = activeTemplateButton ? activeTemplateButton.dataset.frameTemplate : 'template-a';
             
             const activeColorButton = document.querySelector('#colorButtonGroup .btn.active');
-            const currentColor = activeColorButton ? activeColorButton.dataset.frameColor : 'black'; // Default
+            const currentColor = activeColorButton ? activeColorButton.dataset.frameColor : 'black';
 
             // photoFrameのクラスをリセットして再適用
-            this.ui.photoFrame.className = 'photo-frame'; // Reset all classes
+            this.ui.photoFrame.className = 'photo-frame'; 
             this.ui.photoFrame.classList.add(currentTemplate, `${currentColor}-frame`);
 
             const isTemplateC = (currentTemplate === 'template-c');
@@ -241,36 +247,49 @@ document.addEventListener('DOMContentLoaded', () => {
             // アスペクト比ボタンの有効/無効切り替え (テンプレートCのみ無効)
             this.ui.aspectButtons.forEach(b => b.classList.toggle('disabled', isTemplateC));
             
-            // 現在選択されているアスペクト比ボタンから比率を取得
+            // 現在選択されているアスペクト比ボタンからフレームのターゲット比率を取得
             const selectedAspectButton = document.querySelector('#aspectButtonGroup .btn.active');
-            let targetAspectRatio = this.ASPECT_RATIOS['3-2']; // デフォルト値
-            if (selectedAspectButton && !selectedAspectButton.classList.contains('disabled')) { // disabledでないボタンのdatasetを優先
-                targetAspectRatio = this.ASPECT_RATIOS[selectedAspectButton.dataset.aspect];
+            let frameTargetAspectRatio = this.ASPECT_RATIOS['3-2']; // デフォルト値
+            if (selectedAspectButton && !selectedAspectButton.classList.contains('disabled')) {
+                frameTargetAspectRatio = this.ASPECT_RATIOS[selectedAspectButton.dataset.aspect];
             }
             
             if (isTemplateC) {
-                targetAspectRatio = this.ASPECT_RATIOS['1-1']; // テンプレートCは正方形に固定
-                // 1:1ボタンをアクティブにし、他を非アクティブに (UI表示のみ)
-                this.ui.aspectButtons.forEach(b => {
-                    if (b.dataset.aspect === '1-1') {
-                        b.classList.add('active');
-                    } else {
-                        b.classList.remove('active');
-                    }
-                });
+                frameTargetAspectRatio = this.ASPECT_RATIOS['1-1']; // Template Cはフレーム全体が正方形
+                // UI上の1:1ボタンをアクティブにする
+                this.autoSelectAspectRatioButton(this.ASPECT_RATIOS['1-1']); 
             } else {
-                 // テンプレートC以外では、現在アクティブなアスペクト比ボタンをUIに反映
-                 this.autoSelectAspectRatioButton(targetAspectRatio); // 現在選択されているアスペクト比をアクティブにする
+                 // Template C以外では、現在アクティブなアスペクト比ボタンをUIに反映
+                 this.autoSelectAspectRatioButton(frameTargetAspectRatio); 
             }
 
-            // photo-area にアスペクト比を適用
-            this.ui.photoArea.style.aspectRatio = targetAspectRatio;
+            // --- ここが重要 ---
+            // 1. photo-area（写真部分の枠）は、**写真本来の縦横比**で表示する
+            this.ui.photoArea.style.aspectRatio = this.currentLoadedImageRatio;
+
+            // 2. photo-frame（フレーム全体）の幅を、選択されたフレームの縦横比に基づいて調整
+            // 例: フレームの縦横比が3:2なら、photo-areaの高さが photo-frame.width * (2/3) になるように調整
+            let calculatedFrameWidth = this.DEFAULT_FRAME_WIDTH; // 基本のプレビュー幅
+            let infoBarHeightRatio = this.INFO_BAR_HEIGHT_RATIOS['3-2']; // デフォルトの情報帯比率
             
-            // CSS変数 --current-photo-height の更新 (情報帯の高さ計算用)
+            if (isTemplateC) {
+                calculatedFrameWidth = 320; // Template Cの固定幅
+                infoBarHeightRatio = this.INFO_BAR_HEIGHT_RATIOS['template-c-fixed'];
+            } else {
+                // 選択されたフレームの縦横比に合わせてフレーム全体の幅を調整
+                // 例: 常に写真エリアの幅を基準として、フレーム全体の幅を計算
+                // photo-areaの幅 (400px) / (選択されたフレームの縦横比)
+                // このロジックはCSSの .photo-frame のwidth: var(--frame-width) と連携
+                this.ui.photoFrame.style.setProperty('--frame-width', `${this.DEFAULT_FRAME_WIDTH}px`);
+                infoBarHeightRatio = this.INFO_BAR_HEIGHT_RATIOS[selectedAspectButton ? selectedAspectButton.dataset.aspect : '3-2'];
+            }
+            
+            // CSS変数 --info-bar-height の更新 (情報帯の高さ計算用)
+            // photo-areaの高さではなく、フレーム全体の幅と情報帯の比率で計算
             requestAnimationFrame(() => {
-                const currentPhotoAreaWidth = parseFloat(getComputedStyle(this.ui.photoArea).width);
-                const calculatedPhotoHeight = currentPhotoAreaWidth / targetAspectRatio;
-                this.ui.photoFrame.style.setProperty('--current-photo-height', `${calculatedPhotoHeight}px`);
+                const currentFrameWidth = parseFloat(getComputedStyle(this.ui.photoFrame).width);
+                const calculatedInfoHeight = currentFrameWidth * infoBarHeightRatio;
+                this.ui.photoFrame.style.setProperty('--info-bar-height', `${calculatedInfoHeight}px`);
             });
 
             this.updateMetadata();
@@ -278,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // アスペクト比ボタンのアクティブ状態を更新する関数 (クリックされたボタンをアクティブにする)
         handleAspectChange(clickedButton) {
-            if (clickedButton.classList.contains('disabled')) return; // テンプレートCで無効化されている場合は何もしない
+            if (clickedButton.classList.contains('disabled')) return; 
             
             this.ui.aspectButtons.forEach(b => b.classList.remove('active'));
             clickedButton.classList.add('active');
@@ -301,14 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
         handleColorChange(clickedButton) {
             this.ui.colorButtons.forEach(b => b.classList.remove('active'));
             clickedButton.classList.add('active');
-            // applyTemplateAndAspectを呼び出すことで、クラスの付け替えと背景色同期をまとめて処理
-            this.applyTemplateAndAspect(); 
+            this.applyTemplateAndAspect(); // クラスの付け替えと背景色同期をまとめて処理
         }
 
         // メタデータ表示の更新
         updateMetadata() {
             const data = this.collectMetadata();
-            // 各表示要素にデータを設定（空の場合はデフォルト値を表示）
             this.displays.a.camera.textContent = data.camera || 'カメラ機種';
             this.displays.a.shooting.textContent = data.shooting || '撮影データ';
             this.displays.a.date.textContent = data.date ? data.date.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '撮影日時';
@@ -369,16 +386,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Canvas全体のサイズ設定
             const targetWidth = this.PRINT_SETTINGS.targetWidth; // 基準となる幅 (4K横幅)
-            let photoHeight = targetWidth / settings.aspectRatio; // 写真エリアの高さ
+            // photoHeightは写真エリアの高さ（写真の縦横比で決まる）
+            let photoHeight = targetWidth / this.currentLoadedImageRatio; 
             let infoHeight = 0; // 情報帯の高さ
 
-            // 情報帯の高さを調整
-            if (settings.template === 'template-a' || settings.template === 'template-b') {
-                infoHeight = photoHeight * this.INFO_BAR_RATIO_NORMAL; // 写真エリアの1/4
-            } else if (settings.template === 'template-c') {
-                // Template C は写真部分が正方形、情報帯も大きめに固定
-                photoHeight = targetWidth; // Template Cでは写真エリア自体が正方形になるように幅と同じ高さに
-                infoHeight = targetWidth * this.INFO_BAR_RATIO_C; // 情報帯は全体の幅の40%
+            // 情報帯の高さを計算 (フレーム全体の幅に対する比率)
+            if (settings.template === 'template-c') {
+                infoHeight = targetWidth * this.INFO_BAR_RATIO_C; // Template Cは固定比率
+            } else {
+                // 選択されたフレームのアスペクト比ボタンの比率から情報帯の基準の高さを決定
+                const selectedAspectKey = document.querySelector('#aspectButtonGroup .btn.active').dataset.aspect;
+                const infoRatio = this.INFO_BAR_HEIGHT_RATIOS[selectedAspectKey];
+                infoHeight = targetWidth * infoRatio; // フレーム幅に対する比率で計算
             }
 
             canvas.width = targetWidth;
@@ -393,8 +412,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 写真エリアの座標とサイズ
             const pArea = { x: 0, y: 0, w: targetWidth, h: photoHeight };
             if (settings.template === 'template-c') { // Template Cは写真が中央に配置される
-                 pArea.w = targetWidth * 0.9; pArea.h = pArea.w; // 写真エリアをフレームの90%に縮小
-                 pArea.x = (targetWidth - pArea.w) / 2; pArea.y = pArea.x; // 中央に配置
+                 pArea.w = targetWidth * 0.9; pArea.h = pArea.w / this.currentLoadedImageRatio; // 写真エリアをフレームの90%に縮小し、写真の比率を保つ
+                 pArea.x = (targetWidth - pArea.w) / 2; 
+                 pArea.y = (targetWidth - pArea.h) / 2; // 中央に配置
             }
             
             // 写真の描画（背景色でfill、containモード）
@@ -405,8 +425,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // 情報帯の描画
             // y座標は写真エリアの直下から
-            const iArea = { x: 0, y: pArea.y + pArea.h, w: canvas.width, h: infoHeight, p: targetWidth * 0.04 }; // p: padding
-            // ctx.fillStyleはdrawTemplateInfo内で設定される
+            const iArea = { x: 0, y: photoHeight, w: canvas.width, h: infoHeight, p: targetWidth * 0.04 }; // p: padding
+            // Template Cの場合は情報帯のy座標を調整
+            if (settings.template === 'template-c') {
+                iArea.y = targetWidth; // Cでは情報帯は正方形のフレームの真下に続く
+            }
+
             const baseFont = targetWidth * 0.022; // 印刷用の基本フォントサイズ
             
             this.drawTemplateInfo(ctx, settings, iArea, baseFont); // 各テンプレートごとの情報描画
@@ -431,9 +455,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return {
                 template: currentTemplate,
-                aspectRatio: currentAspectRatio,
+                aspectRatio: currentAspectRatio, // これはフレーム全体の横縦比
                 isBlack: isBlackFrame,
-                data: this.collectMetadata()
+                data: this.collectMetadata(),
+                photoRatio: this.currentLoadedImageRatio // 写真本来の比率
             };
         }
 
