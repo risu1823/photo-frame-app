@@ -29,7 +29,8 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     transition: all 0.3s ease; 
     display: flex; 
     flex-direction: column; 
-    width: 400px; /* デスクトッププレビューのフレーム幅を固定 */
+    /* フレームの幅はJSから制御される --frame-width CSS変数で動的に設定 */
+    width: var(--frame-width, 400px); 
     max-width: 100%; /* 親要素からはみ出さないように */
 } 
 .photo-area { 
@@ -39,8 +40,10 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     align-items: center; 
     justify-content: center; 
     width: 100%; /* Take full width of photo-frame */
+    /* photo-areaのaspect-ratioはJSから動的に写真の比率に合わせて設定される */
+    aspect-ratio: var(--photo-area-aspect-ratio, 3/2); /* JSによって上書きされるが、fallbackとして設定 */
 }
-/* 写真エリアの背景色をフレームカラーと同期（余白の色） */
+/* 写真エリアの背景色をフレームカラーと同期（写真とフレームの余白の色） */
 .black-frame .photo-area { background: #111; }
 .white-frame .photo-area { background: #fff; }
 
@@ -58,6 +61,7 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     position: absolute; 
 }
 /* 画像表示の改善 - 拡大によるピクセル化を防ぎ、適切に収める */
+/* width/height: auto; max-width/height: 100% が肝 */
 #photoArea .photo-img { 
     max-width: 100%; /* 親要素からはみ出さない */
     max-height: 100%; /* 親要素からはみ出さない */
@@ -91,29 +95,14 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
     width: 100%; /* Ensure it spans full width */
     position: relative; /* For dynamic height adjustment */
-    /* --current-photo-height はJSでセットされるphoto-areaのheightに相当 */
-    /* デスクトップ表示での情報帯の高さ比率を1/4に調整 */
-    height: calc(var(--current-photo-height, 267px) * var(--info-bar-height-ratio, 0.25)); 
+    /* JSからセットされる --info-bar-height CSS変数で高さを制御 */
+    height: var(--info-bar-height, 100px); /* fallback value */
     display: flex; 
     align-items: center; 
     justify-content: center;
 }
 /* All individual info panels are hidden by default, shown by template-specific classes */
 .info-panel { display: none; padding: 25px; width: 100%; } 
-
-/* Aspect Ratios (width of photo-frame, height of photo-area controlled by aspect-ratio) */
-/* これらの幅と高さはプレビューの最大サイズと関連し、photo-areaのaspect-ratioで高さを制御 */
-.aspect-3-2 { width: 400px; --current-photo-height: 267px; } 
-.aspect-4-3 { width: 400px; --current-photo-height: 300px; } 
-.aspect-16-9 { width: 400px; --current-photo-height: 225px; } 
-.aspect-1-1 { width: 400px; --current-photo-height: 400px; } 
-.aspect-21-9 { width: 400px; --current-photo-height: 171px; } 
-
-/* Apply aspect-ratio to photo-area based on selected frame aspect */
-.photo-area {
-    aspect-ratio: var(--aspect-ratio, 3/2); /* Default to 3:2 */
-}
-
 
 /* --- General Color Styles (Applied to .photo-frame, affecting .info-panel-wrapper) --- */
 .black-frame .info-panel-wrapper { background: #111; color: white; }
@@ -169,7 +158,7 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
         width: 100% !important; /* Allow full width on mobile */
         max-width: none; 
     } 
-    /* Mobile: info bar height ratio */
+    /* Mobile: info bar height setting */
     .photo-frame:not(.template-c) .info-panel-wrapper {
         height: calc(var(--current-photo-height, 267px) * var(--info-bar-height-ratio-mobile, 0.2)); /* さらに小さく */
     }
@@ -179,10 +168,12 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     }
 }
 
-/* CSS Variables for aspect-ratio and calculated photo height for info bar */
-/* photo-areaに直接aspect-ratioを適用し、heightは自動計算される */
-.photo-frame.aspect-3-2 .photo-area { aspect-ratio: 3/2; }
-.photo-frame.aspect-4-3 .photo-area { aspect-ratio: 4/3; }
-.photo-frame.aspect-16-9 .photo-area { aspect-ratio: 16/9; }
-.photo-frame.aspect-1-1 .photo-area { aspect-ratio: 1/1; }
-.photo-frame.aspect-21-9 .photo-area { aspect-ratio: 21/9; }
+/* CSS Variables for aspect-ratio. These are NOT applied to .photo-area directly anymore by default. */
+/* JS will apply the selected aspect ratio to --frame-aspect-ratio and calculate frame width based on it */
+/* photo-areaのaspect-ratioはJSから直接制御される */
+/* --frame-aspect-ratio を導入し、JSからフレーム幅と情報帯の高さ計算に利用 */
+.photo-frame.aspect-3-2 { --frame-aspect-ratio: 3/2; }
+.photo-frame.aspect-4-3 { --frame-aspect-ratio: 4/3; }
+.photo-frame.aspect-16-9 { --frame-aspect-ratio: 16/9; }
+.photo-frame.aspect-1-1 { --frame-aspect-ratio: 1/1; }
+.photo-frame.aspect-21-9 { --frame-aspect-ratio: 21/9; }
