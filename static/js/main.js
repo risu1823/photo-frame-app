@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         async handleFile(file) {
             try {
                 this.validateFile(file);
+                
                 const imageData = await this.loadImage(file);
                 this.originalImageSrc = imageData.src;
                 
@@ -301,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleColorChange(clickedButton) {
             this.ui.colorButtons.forEach(b => b.classList.remove('active'));
             clickedButton.classList.add('active');
-            const color = clickedButton.dataset.frameColor;
             // applyTemplateAndAspectを呼び出すことで、クラスの付け替えと背景色同期をまとめて処理
             this.applyTemplateAndAspect(); 
         }
