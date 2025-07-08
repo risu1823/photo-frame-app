@@ -57,15 +57,16 @@ body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; ba
     justify-content: center; 
     position: absolute; 
 }
-/* 写真が切り取られないようにする重要な設定 */
-/* IDセレクタ + !important で強制的に適用 */
+/* 写真が切り取られないようにする設定を強化 */
+/* IDセレクタは維持しつつ、!importantを削除してCSS優先順位を考慮 */
 #photoArea .photo-img { 
-    width: 100% !important; 
-    height: 100% !important; 
-    object-fit: contain !important; /* これで常に全体が表示されます */
-    display: block; /* デフォルトで表示 */
-    image-rendering: -webkit-optimize-contrast; /* Webkitでの低解像度ぼやけ対策 */
-    image-rendering: crisp-edges; /* Edge/Firefoxでの低解像度ぼやけ対策 */
+    width: 100%; 
+    height: 100%; 
+    object-fit: contain; /* これで常に全体が表示されます */
+    display: block; /* img要素はinlineであるため、ブロック要素に設定 */
+    /* アンチエイリアス/画像の滑らかさの改善 */
+    image-rendering: auto; /* ブラウザに任せる */
+    -ms-interpolation-mode: bicubic; /* IE用 */
 }
 /* placeholderは写真が表示されたら非表示 */
 #photoArea #placeholder {
